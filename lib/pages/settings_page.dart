@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -45,6 +46,18 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<String> _defaultRecordDir() async {
+    // Android：App 专属外部目录（无需权限，保证可写；文件管理器在
+    // Android/data/<包名>/files/ 下可见）。DCIM 等共享目录需额外"所有文件访问"权限。
+    if (Platform.isAndroid) {
+      try {
+        final dir = await getExternalStorageDirectory();
+        if (dir != null) {
+          return '${dir.path}${dir.path.endsWith('/') ? '' : '/'}records';
+        }
+      } catch (_) {}
+      return '/storage/emulated/0/Android/data/com.example.vlc/files/records';
+    }
+    // 桌面端：用应用文档目录下的 records/
     try {
       final dir = await getApplicationDocumentsDirectory();
       return '${dir.path}${dir.path.endsWith('/') ? '' : '/'}records';

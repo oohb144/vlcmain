@@ -3,7 +3,9 @@ import 'dart:io';
 import 'package:intl/intl.dart';
 import 'package:flutter/foundation.dart';
 
-/// FFmpeg 子进程录像服务。
+import 'recorder_service.dart';
+
+/// FFmpeg 子进程录像服务（桌面端：Windows / Linux / macOS）。
 ///
 /// 原理：点开始录像时，后台 spawn 一个 ffmpeg 进程直接连 RTSP 源，
 /// `-c copy` 不转码将原始流（H.264+AAC）封装进 `.ts` 文件；
@@ -13,35 +15,39 @@ import 'package:flutter/foundation.dart';
 ///       断流可由 ffmpeg 自己重连或被检测。
 ///
 /// ffmpeg.exe 路径优先来自配置（[ffmpegPath]），其次尝试系统 PATH。
-class FfmpegRecorderService {
+class FfmpegRecorderService implements RecorderService {
   Process? _process;
   String? _currentFile;
   IOSink? _stdin;
 
-  /// 解析录像结果。
+  @override
   String? get currentFile => _currentFile;
+  @override
   bool get isRecording => _process != null && _currentFile != null;
 
   /// 开始录像。
   /// [rtspUrl] RTSP 源；[dir] 输出目录；[ffmpegPath] 可执行文件路径（空则用 PATH）。
-  Future<({bool ok, String? file, String? error})> start({
+  /// 成功返回输出文件绝对路径，失败抛异常（消息可用于 UI 提示）。
+  @override
+  Future<String> start({
     required String rtspUrl,
     required String dir,
     String ffmpegPath = 'ffmpeg',
   }) async {
-    if (isRecording) return (ok: true, file: _currentFile, error: null);
-    if (rtspUrl.isEmpty) return (ok: false, file: null, error: 'RTSP 地址为空');
-    if (dir.isEmpty) return (ok: false, file: null, error: '录像目录未配置');
+    if (isRecording) return _currentFile!;
+    if (rtspUrl.isEmpty) throw Exception('RTSP 地址为空');
+    if (dir.isEmpty) throw Exception('录像目录未配置');
 
     try {
       final d = Directory(dir);
       if (!await d.exists()) await d.create(recursive: true);
     } catch (e) {
-      return (ok: false, file: null, error: '创建目录失败: $e');
+      throw Exception('创建目录失败: $e');
     }
 
     final now = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
-    final out = '$dir${dir.endsWith('/') || dir.endsWith(r'\') ? '' : '/'}rec_$now.ts';
+    final out =
+        '$dir${dir.endsWith('/') || dir.endsWith(r'\') ? '' : '/'}rec_$now.ts';
 
     final args = <String>[
       '-y',
@@ -55,11 +61,9 @@ class FfmpegRecorderService {
     // 解析可用的 ffmpeg 可执行路径：优先配置值，其次常见安装位置
     final exe = await _resolveFfmpeg(ffmpegPath);
     if (exe == null) {
-      return (
-        ok: false,
-        file: null,
-        error: '找不到 ffmpeg。请在设置页填写 ffmpeg.exe 绝对路径，'
-            '或安装后重启程序（winget install Gyan.FFmpeg）'
+      throw Exception(
+        '找不到 ffmpeg。请在设置页填写 ffmpeg.exe 绝对路径，'
+        '或安装后重启程序（winget install Gyan.FFmpeg）',
       );
     }
 
@@ -70,7 +74,7 @@ class FfmpegRecorderService {
         mode: ProcessStartMode.normal,
       );
     } catch (e) {
-      return (ok: false, file: null, error: '启动 ffmpeg 失败: $e');
+      throw Exception('启动 ffmpeg 失败: $e');
     }
 
     _currentFile = out;
@@ -87,10 +91,11 @@ class FfmpegRecorderService {
       debugPrint('[ffmpeg] exited code=$code, file=$out');
     }));
 
-    return (ok: true, file: out, error: null);
+    return out;
   }
 
   /// 停止录像：向 ffmpeg stdin 发送 'q' 让其优雅退出以正常写文件尾部。
+  @override
   Future<void> stop() async {
     final p = _process;
     if (p == null) {
@@ -111,7 +116,7 @@ class FfmpegRecorderService {
     }
   }
 
-  /// 释放。
+  @override
   Future<void> dispose() async {
     await stop();
   }

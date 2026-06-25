@@ -1,9 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
 import '../services/config_service.dart';
 import '../services/rtsp_service.dart';
-import '../services/ffmpeg_recorder_service.dart';
+import '../services/recorder_service.dart';
 import '../services/status_poll_service.dart';
 import '../services/command_service.dart';
 import '../models/stream_config.dart';
@@ -19,7 +20,9 @@ class PlayerPage extends StatefulWidget {
 
 class _PlayerPageState extends State<PlayerPage> {
   final RtspService _rtsp = RtspService();
-  final FfmpegRecorderService _recorder = FfmpegRecorderService();
+  // 录像服务：桌面端走 ffmpeg 子进程；Android 走 mpv stream-record。
+  // 在 initState 中按平台创建（字段初始化器不能引用 this）。
+  late final RecorderService _recorder;
 
   StreamConfig? _config;
   late StatusPollService _statusPoll;
@@ -30,10 +33,13 @@ class _PlayerPageState extends State<PlayerPage> {
   bool _isControlOn = false;     // 控制通道（状态轮询 + 下发）是否开启，独立于推流
   bool _isRecording = false;
   String _statusText = '未连接';
+  // mpv 日志中最近一条与录像/流相关的信息，用于排查录像不生效
+  String? _mpvLogHint;
 
   @override
   void initState() {
     super.initState();
+    _recorder = createRecorder(_rtsp);
     _initAsync();
   }
 
@@ -54,6 +60,7 @@ class _PlayerPageState extends State<PlayerPage> {
 
   @override
   void dispose() {
+    _mpvLogSub?.cancel();
     _recorder.dispose();
     if (_servicesReady) _statusPoll.dispose();
     _rtsp.dispose();
@@ -70,8 +77,19 @@ class _PlayerPageState extends State<PlayerPage> {
     setState(() => _statusText = '推流连接中…');
     try {
       _rtsp.ensurePlayer();
-      await _rtsp.applyRtspPrefs();
-      await _rtsp.open(url);
+      _subscribeMpvLog();
+      // 录像中用可寻址缓存参数（low-latency 会禁用 stream-record）
+      if (_isRecording) {
+        await _rtsp.applyRecordablePrefs();
+      } else {
+        await _rtsp.applyRtspPrefs();
+      }
+      // 若正在录像：mpv 方案需 reopen 时继续带上录像路径不中断录制；
+      // ffmpeg 方案独立拉流，不受播放器影响，普通 open 即可。
+      final recordPath = (_isRecording && _recorder is MpvRecorderService)
+          ? _recorder.currentFile
+          : null;
+      await _rtsp.open(url, recordPath: recordPath);
       setState(() {
         _isPlaying = true;
         _statusText = '已接收推流: $url';
@@ -82,8 +100,11 @@ class _PlayerPageState extends State<PlayerPage> {
   }
 
   Future<void> _stopStream() async {
+    // 停推流前先结束录像（mpv 方案的录像依赖播放器，ffmpeg 方案也一并停掉）
     if (_isRecording) {
-      await _recorder.stop();
+      try {
+        await _recorder.stop();
+      } catch (_) {}
       setState(() => _isRecording = false);
     }
     await _rtsp.stop();
@@ -142,21 +163,27 @@ class _PlayerPageState extends State<PlayerPage> {
       _toast('录像目录未配置，请到设置中指定');
       return;
     }
+    // 桌面 ffmpeg 方案独立拉流，不要求先播放；Android mpv 方案 start 内部
+    // 会 open 流，也不强制"已接收推流"。
     if (_isRecording) {
-      await _recorder.stop();
+      try {
+        await _recorder.stop();
+      } catch (e) {
+        if (mounted) _toast('停止录像异常: $e');
+      }
       setState(() => _isRecording = false);
       if (mounted) _toast('已停止录像');
     } else {
-      final res = await _recorder.start(
-        rtspUrl: c.rtspUrl,
-        dir: c.recordDir,
-        ffmpegPath: c.ffmpegPath.isEmpty ? 'ffmpeg' : c.ffmpegPath,
-      );
-      if (res.ok && res.file != null) {
+      try {
+        final path = await _recorder.start(
+          rtspUrl: c.rtspUrl,
+          dir: c.recordDir,
+          ffmpegPath: c.ffmpegPath,
+        );
         setState(() => _isRecording = true);
-        if (mounted) _toast('开始录像: ${res.file!.split('/').last.split(r'\').last}');
-      } else {
-        if (mounted) _toast('录像失败: ${res.error ?? "未知错误"}');
+        if (mounted) _toast('开始录像: ${path.split('/').last}');
+      } catch (e) {
+        if (mounted) _toast('开始录像失败: $e');
       }
     }
   }
@@ -164,6 +191,26 @@ class _PlayerPageState extends State<PlayerPage> {
   void _toast(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  StreamSubscription<dynamic>? _mpvLogSub;
+  void _subscribeMpvLog() {
+    _mpvLogSub?.cancel();
+    _mpvLogSub = _rtsp.logStream.listen((log) {
+      final t = log.text.toLowerCase();
+      // 只关心录像/流/文件/错误相关日志
+      if (t.contains('record') ||
+          t.contains('stream') ||
+          t.contains('error') ||
+          t.contains('fail') ||
+          t.contains('denied') ||
+          t.contains('cannot')) {
+        debugPrint('[mpv] ${log.prefix}/${log.level}: ${log.text}');
+        if (mounted) {
+          setState(() => _mpvLogHint = '${log.level}: ${log.text}');
+        }
+      }
+    });
   }
 
   @override
@@ -263,6 +310,16 @@ class _PlayerPageState extends State<PlayerPage> {
               ],
             ),
           ),
+          if (_mpvLogHint != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text(
+                'mpv: $_mpvLogHint',
+                style: const TextStyle(fontSize: 10, color: Colors.orange),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 2,
+              ),
+            ),
           ControlBar(
             rtsp: _rtsp,
             isPlaying: _isPlaying,

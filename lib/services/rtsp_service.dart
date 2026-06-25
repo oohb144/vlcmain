@@ -21,23 +21,49 @@ class RtspService {
 
   VideoController? get controller => _controller;
 
+  /// mpv 日志流（错误/信息），用于排查录像等问题。
+  Stream<PlayerLog> get logStream {
+    ensurePlayer();
+    return _player!.stream.log;
+  }
+
   /// 创建（或复用）Player 与 VideoController。
   void ensurePlayer() {
     if (_player != null) return;
     _player = Player(
       configuration: const PlayerConfiguration(
         bufferSize: 16 * 1024 * 1024,
+        logLevel: MPVLogLevel.info,
       ),
     );
     _controller = VideoController(_player!);
   }
 
   /// 应用 RTSP 优化参数。可在 open 前调用。
+  ///
+  /// 注意：[applyRtspPrefs] 设了 `profile=low-latency`，该 profile 会禁用
+  /// demuxer-seekable-cache，导致 mpv 的 `stream-record` 录像不可用
+  ///（报 "disabling recording" / "cannot create file cache"）。
+  /// 因此录像时必须改用 [applyRecordablePrefs] 启用 seekable cache。
   Future<void> applyRtspPrefs() async {
     ensurePlayer();
     await _setProperty('rtsp-transport', 'tcp');
     await _setProperty('profile', 'low-latency');
     await _setProperty('hwdec', 'auto');
+  }
+
+  /// 录像专用参数：启用 demuxer-seekable-cache，让 stream-record 可工作。
+  /// 录像时用这个替代 [applyRtspPrefs]（延迟略增，但能正常落盘）。
+  Future<void> applyRecordablePrefs() async {
+    ensurePlayer();
+    await _setProperty('rtsp-transport', 'tcp');
+    // 不再设 profile=''（mpv 对空 profile 名会告警且不会回退 low-latency 已
+    // 应用的选项值）。改为显式覆盖 stream-record 依赖的几个关键选项。
+    await _setProperty('hwdec', 'auto');
+    // stream-record 必需：可寻址缓存
+    await _setProperty('demuxer-seekable-cache', 'yes');
+    await _setProperty('cache', 'yes');
+    await _setProperty('cache-secs', '2');
   }
 
   /// 通过底层 mpv 平台句柄设置任意 mpv 属性。
@@ -53,8 +79,18 @@ class RtspService {
       _setProperty(key, value);
 
   /// 打开并播放 RTSP 地址或本地文件路径。
-  Future<void> open(String uri) async {
+  /// [recordPath] 非空时，会在 open 前通过 mpv 的 `stream-record` 属性注入，
+  /// 从而边播边把原始流复制到本地文件（不二次编码）。
+  /// 注意：stream-record 只对网络/直播流生效，播放本地文件时无效。
+  Future<void> open(String uri, {String? recordPath}) async {
     ensurePlayer();
+    // 关键：必须在 open 之前设置 stream-record，开播后再设不生效
+    if (recordPath != null && recordPath.isNotEmpty) {
+      await _setProperty('stream-record', recordPath);
+    } else {
+      // 没传录像路径，确保清掉之前的录制目标
+      await _setProperty('stream-record', '');
+    }
     await player.open(Media(uri));
   }
 
