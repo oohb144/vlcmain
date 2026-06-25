@@ -1,6 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 网络权限（RTSP + HTTP 状态/下发） -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- 允许明文 HTTP（K230 的状态/下发接口走 http://，非 https） -->
     <application
-        android:label="vlc"
+        android:label="K230播放器"
+        android:usesCleartextTraffic="true"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
