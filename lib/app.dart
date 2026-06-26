@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import 'pages/player_page.dart';
-import 'pages/settings_page.dart';
+
 import 'pages/playback_page.dart';
+import 'pages/settings_page.dart';
+import 'shell/app_shell.dart';
+import 'theme/app_theme.dart';
 
 class VlcApp extends StatelessWidget {
   const VlcApp({super.key});
@@ -9,15 +11,11 @@ class VlcApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'K230 RTSP 接收播放器',
+      title: '智能门禁管理系统',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
-        useMaterial3: true,
-      ),
-      initialRoute: '/',
+      theme: appTheme,
+      home: const AppShell(),
       routes: {
-        '/': (context) => const PlayerPage(),
         '/settings': (context) => const SettingsPage(),
         '/playback': (context) => const PlaybackPage(),
       },

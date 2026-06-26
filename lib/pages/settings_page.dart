@@ -2,8 +2,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../services/command_service.dart';
 import '../services/config_service.dart';
+import '../shell/cmd_constants.dart';
 import '../models/stream_config.dart';
+import '../widgets/switch_row.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -20,6 +23,7 @@ class _SettingsPageState extends State<SettingsPage> {
   TextEditingController? _recordDir;
   TextEditingController? _ffmpegPath;
   TextEditingController? _pollMs;
+  CommandService? _cmdService;
   bool _saving = false;
   bool _ready = false;
 
@@ -42,6 +46,7 @@ class _SettingsPageState extends State<SettingsPage> {
     _ffmpegPath =
         TextEditingController(text: c.ffmpegPath.isEmpty ? 'ffmpeg' : c.ffmpegPath);
     _pollMs = TextEditingController(text: c.pollIntervalMs.toString());
+    _cmdService = CommandService(c.commandUrl);
     if (mounted) setState(() => _ready = true);
   }
 
@@ -173,6 +178,9 @@ class _SettingsPageState extends State<SettingsPage> {
                     },
                   ),
                   const SizedBox(height: 24),
+                  // 调试功能：直接下发设备开关指令（无需推流即可调试下位机）
+                  _debugSection(),
+                  const SizedBox(height: 24),
                   FilledButton.icon(
                     onPressed: _saving ? null : _save,
                     icon: _saving
@@ -186,6 +194,28 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             )
           : const Center(child: CircularProgressIndicator()),
+    );
+  }
+
+  /// 调试功能卡片：HTTP/RTSP 推流、音频、LED、自动录制开关。
+  /// 指令经 [CommandService] 下发到 K230 的 /command。
+  Widget _debugSection() {
+    final cmd = _cmdService;
+    if (cmd == null) return const SizedBox.shrink();
+    return InputDecorator(
+      decoration: const InputDecoration(
+        labelText: '调试功能（设备开关）',
+        border: OutlineInputBorder(),
+      ),
+      child: Column(
+        children: [
+          SwitchRow(label: 'HTTP 推流', onCmd: Cmd.streamOn, offCmd: Cmd.streamOff, command: cmd),
+          SwitchRow(label: 'RTSP 推流', onCmd: Cmd.rtspOn, offCmd: Cmd.rtspOff, command: cmd),
+          SwitchRow(label: '音频提示', onCmd: Cmd.audioOn, offCmd: Cmd.audioOff, command: cmd),
+          SwitchRow(label: 'LED 指示', onCmd: Cmd.ledOn, offCmd: Cmd.ledOff, command: cmd),
+          SwitchRow(label: '自动录制', onCmd: Cmd.autoRecordOn, offCmd: Cmd.autoRecordOff, command: cmd),
+        ],
+      ),
     );
   }
 }
