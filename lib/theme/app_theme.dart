@@ -2,22 +2,21 @@ import 'package:flutter/material.dart';
 
 import 'app_colors.dart';
 
-/// 应用深色主题：基于 [AppColors] 的 GitHub 风暗色调。
+/// 应用浅色主题：天蓝 + 浅绿 + 白色清新风。
 ///
-/// Material 3 的默认 dark 用 #1C1C1C 系灰，这里整体替换为 #0D1117/​#161B22，
-/// 让 Scaffold/卡片/导航栏与参考 HTML 一致。
+/// 白底浅蓝背景 + 天蓝强调色 + 浅绿状态色，视频区仍用黑色填充。
 ThemeData get appTheme {
-  final base = ThemeData.dark(useMaterial3: true);
+  final base = ThemeData.light(useMaterial3: true);
 
   return base.copyWith(
     scaffoldBackgroundColor: AppColors.bgPrimary,
     canvasColor: AppColors.bgSecondary,
-    colorScheme: const ColorScheme.dark(
-      brightness: Brightness.dark,
+    colorScheme: const ColorScheme.light(
+      brightness: Brightness.light,
       primary: AppColors.accent,
       onPrimary: Colors.white,
       secondary: AppColors.purple,
-      onSecondary: Colors.black,
+      onSecondary: AppColors.textPrimary,
       error: AppColors.red,
       onError: Colors.white,
       surface: AppColors.bgCard,
@@ -76,10 +75,12 @@ ThemeData get appTheme {
       overlayColor: AppColors.accent.withValues(alpha: 0.2),
       trackHeight: 3,
     ),
-    switchTheme: const SwitchThemeData(
-      thumbColor: WidgetStatePropertyAll(Colors.white),
-      trackColor: WidgetStatePropertyAll(AppColors.border),
-      trackOutlineColor: WidgetStatePropertyAll(Colors.transparent),
+    switchTheme: SwitchThemeData(
+      thumbColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected) ? Colors.white : AppColors.textMuted),
+      trackColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected) ? AppColors.accent : AppColors.border),
+      trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
     ),
     navigationRailTheme: NavigationRailThemeData(
       backgroundColor: AppColors.bgSecondary,

@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 
 import '../services/command_service.dart';
@@ -34,6 +36,9 @@ class FaceDashboard extends StatefulWidget {
 class _FaceDashboardState extends State<FaceDashboard> {
   double _conf = 0.25;
   double _recognize = 0.72;
+  // 置信度历史曲线 buffer（最近 40 个采样点）
+  final List<double> _history = [];
+  int _lastStatusMs = 0;
 
   Future<void> _send(Map<String, dynamic> payload, String label) async {
     final res = await widget.command.send(payload);
@@ -83,13 +88,35 @@ class _FaceDashboardState extends State<FaceDashboard> {
             Flexible(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
-                child: ValueListenableBuilder(
-                  valueListenable: widget.statusPoll.status,
-                  builder: (_, status, _) {
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0.0, end: 1.0),
+                  duration: const Duration(milliseconds: 280),
+                  curve: Curves.easeOutCubic,
+                  builder: (_, v, child) => Opacity(
+                    opacity: v,
+                    child: Transform.translate(
+                      offset: Offset(0, 12 * (1 - v)),
+                      child: child,
+                    ),
+                  ),
+                  child: ValueListenableBuilder(
+                    valueListenable: widget.statusPoll.status,
+                    builder: (_, status, _) {
                     final state = status?.state ?? '';
                     final recognizing = state.contains('识别');
                     final enrolling = state.contains('录入');
                     final recording = state.contains('录制') || (status?.recording == true);
+                    // 采样置信度历史：有脸时按已知比例给 0.55~0.95，无脸 0.08
+                    if (status != null && status.updatedAtMs != _lastStatusMs) {
+                      _lastStatusMs = status.updatedAtMs;
+                      final fc = (status.faceCount ?? 0);
+                      final known = (status.knownFaceCount ?? 0);
+                      final v = fc > 0
+                          ? (0.55 + 0.40 * (known / fc)).clamp(0.10, 0.95)
+                          : 0.08;
+                      _history.add(v);
+                      if (_history.length > 40) _history.removeAt(0);
+                    }
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -133,6 +160,7 @@ class _FaceDashboardState extends State<FaceDashboard> {
                     );
                   },
                 ),
+                ),
               ),
             ),
           ],
@@ -144,15 +172,32 @@ class _FaceDashboardState extends State<FaceDashboard> {
   Widget _header(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
-      decoration: const BoxDecoration(
-        color: AppColors.bgSecondary,
-        border: Border(bottom: BorderSide(color: AppColors.border)),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [AppColors.bgSecondary, AppColors.bgPrimary],
+        ),
+        border: const Border(bottom: BorderSide(color: AppColors.accent, width: 0.5)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.dashboard, color: AppColors.accent, size: 20),
-          const SizedBox(width: 8),
+          Container(
+            width: 28,
+            height: 28,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [AppColors.accent, AppColors.purple],
+              ),
+              borderRadius: BorderRadius.circular(7),
+            ),
+            child: const Icon(Icons.dashboard, color: AppColors.textPrimary, size: 16),
+          ),
+          const SizedBox(width: 10),
           const Text('人脸识别控制台',
               style: TextStyle(color: AppColors.textPrimary, fontSize: 15, fontWeight: FontWeight.w600)),
           const Spacer(),
@@ -175,10 +220,20 @@ class _FaceDashboardState extends State<FaceDashboard> {
             padding: const EdgeInsets.only(bottom: 8),
             child: Row(
               children: [
-                Icon(icon, size: 14, color: AppColors.textMuted),
+                Container(
+                  width: 20,
+                  height: 20,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: AppColors.accent.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  child: Icon(icon, size: 12, color: AppColors.accent),
+                ),
                 const SizedBox(width: 6),
                 Text(title,
-                    style: const TextStyle(color: AppColors.textMuted, fontSize: 12, letterSpacing: 0.5)),
+                    style: const TextStyle(
+                        color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
               ],
             ),
           ),
@@ -226,21 +281,38 @@ class _FaceDashboardState extends State<FaceDashboard> {
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: Row(children: [
-              const Icon(Icons.tune, size: 14, color: AppColors.textMuted),
+              _sectionIconBox(Icons.tune),
               const SizedBox(width: 6),
               const Text('阈值调节',
-                  style: TextStyle(color: AppColors.textMuted, fontSize: 12, letterSpacing: 0.5)),
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
               const Spacer(),
-              Text('下位机默认 0.25 / 0.72',
-                  style: const TextStyle(color: AppColors.textMuted, fontSize: 10)),
+              const Text('下位机默认 0.25 / 0.72',
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 10)),
             ]),
           ),
+          // 微型置信度曲线：实时采样 + 两条阈值线
+          _MiniChart(points: _history, conf: _conf, recognize: _recognize),
+          const SizedBox(height: 4),
           _thresholdRow('检测阈值 conf', _conf, (v) => setState(() => _conf = v),
               (v) => _send(Cmd.confThreshold(v), '检测阈值=$v')),
           _thresholdRow('识别阈值 recognize', _recognize, (v) => setState(() => _recognize = v),
               (v) => _send(Cmd.recognizeThreshold(v), '识别阈值=$v')),
         ],
       ),
+    );
+  }
+
+  Widget _sectionIconBox(IconData icon, {Color? color}) {
+    final c = color ?? AppColors.accent;
+    return Container(
+      width: 20,
+      height: 20,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: c.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(5),
+      ),
+      child: Icon(icon, size: 12, color: c),
     );
   }
 
@@ -281,10 +353,19 @@ class _FaceDashboardState extends State<FaceDashboard> {
           Padding(
             padding: const EdgeInsets.only(bottom: 4),
             child: Row(children: [
-              const Icon(Icons.toggle_on, size: 14, color: AppColors.textMuted),
+              Container(
+                width: 20,
+                height: 20,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(5),
+                ),
+                child: const Icon(Icons.toggle_on, size: 12, color: AppColors.accent),
+              ),
               const SizedBox(width: 6),
               const Text('设备开关',
-                  style: TextStyle(color: AppColors.textMuted, fontSize: 12, letterSpacing: 0.5)),
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
             ]),
           ),
           Container(
@@ -317,10 +398,19 @@ class _FaceDashboardState extends State<FaceDashboard> {
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Row(children: [
-            const Icon(Icons.warning_amber, size: 14, color: AppColors.red),
+            Container(
+              width: 20,
+              height: 20,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: AppColors.red.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(5),
+              ),
+              child: const Icon(Icons.warning_amber, size: 12, color: AppColors.red),
+            ),
             const SizedBox(width: 6),
             const Text('危险操作',
-                style: TextStyle(color: AppColors.red, fontSize: 12, letterSpacing: 0.5)),
+                style: TextStyle(color: AppColors.red, fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
           ]),
         ),
         Wrap(spacing: 8, runSpacing: 8, children: [
@@ -363,16 +453,23 @@ class _Btn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: bg,
+      color: Colors.transparent,
       borderRadius: BorderRadius.circular(6),
       child: InkWell(
         borderRadius: BorderRadius.circular(6),
         onTap: onTap,
-        child: Container(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: fg),
+            border: Border.all(color: fg.withValues(alpha: 0.6)),
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [bg, bg.withValues(alpha: 0.5)],
+            ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -386,4 +483,126 @@ class _Btn extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 微型置信度曲线：实时采样点 + 检测阈值线 + 识别阈值线。
+class _MiniChart extends StatelessWidget {
+  final List<double> points;
+  final double conf;
+  final double recognize;
+  const _MiniChart({required this.points, required this.conf, required this.recognize});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 56,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.bgInput,
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: CustomPaint(
+        size: const Size.fromHeight(48),
+        painter: _CurvePainter(points: points, conf: conf, recognize: recognize),
+      ),
+    );
+  }
+}
+
+class _CurvePainter extends CustomPainter {
+  final List<double> points;
+  final double conf;
+  final double recognize;
+  _CurvePainter({required this.points, required this.conf, required this.recognize});
+
+  static const _vMin = 0.05, _vMax = 1.0;
+
+  double _y(double v, double h) {
+    final t = ((v - _vMin) / (_vMax - _vMin)).clamp(0.0, 1.0);
+    return h - t * h;
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final grid = Paint()
+      ..color = AppColors.border
+      ..strokeWidth = 0.5;
+    canvas.drawLine(Offset(0, h * 0.5), Offset(w, h * 0.5), grid);
+
+    _drawDashLine(canvas, Offset(0, _y(conf, h)), Offset(w, _y(conf, h)), AppColors.yellow);
+    _drawDashLine(canvas, Offset(0, _y(recognize, h)), Offset(w, _y(recognize, h)), AppColors.red);
+
+    if (points.length < 2) {
+      final tp = TextPainter(
+          text: const TextSpan(text: '采样中…', style: TextStyle(color: AppColors.textMuted, fontSize: 10)),
+          textDirection: TextDirection.ltr)
+        ..layout();
+      tp.paint(canvas, Offset(4, h / 2 - tp.height / 2));
+      return;
+    }
+
+    final path = Path();
+    final fill = Path();
+    final stepX = w / (points.length - 1);
+    for (var i = 0; i < points.length; i++) {
+      final x = i * stepX;
+      final y = _y(points[i], h);
+      if (i == 0) {
+        path.moveTo(x, y);
+        fill.moveTo(x, h);
+        fill.lineTo(x, y);
+      } else {
+        path.lineTo(x, y);
+        fill.lineTo(x, y);
+      }
+    }
+    fill.lineTo(w, h);
+    fill.close();
+
+    final fillPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [AppColors.accent.withValues(alpha: 0.30), AppColors.accent.withValues(alpha: 0.0)],
+      ).createShader(Rect.fromLTWH(0, 0, w, h))
+      ..style = PaintingStyle.fill;
+    canvas.drawPath(fill, fillPaint);
+
+    final linePaint = Paint()
+      ..color = AppColors.accent
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..strokeJoin = StrokeJoin.round;
+    canvas.drawPath(path, linePaint);
+
+    final lastX = (points.length - 1) * stepX;
+    final lastY = _y(points.last, h);
+    canvas.drawCircle(Offset(lastX, lastY), 2.5, Paint()..color = AppColors.accent);
+  }
+
+  void _drawDashLine(Canvas canvas, Offset a, Offset b, Color color) {
+    final paint = Paint()
+      ..color = color.withValues(alpha: 0.7)
+      ..strokeWidth = 1
+      ..style = PaintingStyle.stroke;
+    const dash = 4.0, gap = 3.0;
+    final dx = b.dx - a.dx;
+    final dy = b.dy - a.dy;
+    final dist = sqrt(dx * dx + dy * dy);
+    if (dist == 0) return;
+    final ux = dx / dist, uy = dy / dist;
+    var d = 0.0;
+    while (d < dist) {
+      final end = (d + dash).clamp(0.0, dist);
+      canvas.drawLine(Offset(a.dx + ux * d, a.dy + uy * d), Offset(a.dx + ux * end, a.dy + uy * end), paint);
+      d += dash + gap;
+    }
+  }
+
+  @override
+  bool shouldRepaint(_CurvePainter old) =>
+      old.conf != conf || old.recognize != recognize || old.points.length != points.length;
 }

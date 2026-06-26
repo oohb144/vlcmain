@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../shell/nav_destinations.dart';
 import '../theme/app_colors.dart';
+import '../theme/theme_mode.dart';
 import 'status_dot.dart';
 
 /// 顶栏：左侧面包屑 + 控制仪表盘按钮 + 右侧 K230/STM32 在线状态点 + IP + 时钟。
@@ -79,17 +80,32 @@ class _TopBarState extends State<TopBar> {
       child: Row(
         children: [
           Expanded(
-            child: Text(
-              widget.breadcrumb,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-              overflow: TextOverflow.ellipsis,
+            child: Row(
+              children: [
+                Icon(
+                  widget.currentIndex < kNavDestinations.length
+                      ? kNavDestinations[widget.currentIndex].selectedIcon
+                      : Icons.dashboard,
+                  size: 18,
+                  color: AppColors.accent,
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    widget.breadcrumb,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
             ),
           ),
           if (widget.onNavigate != null) _dashboardButton(),
+          _themeToggle(),
           const SizedBox(width: 8),
           ValueListenableBuilder2(widget.status, widget.error, (status, err) {
             final k230Online = err == null && status != null;
@@ -135,6 +151,18 @@ class _TopBarState extends State<TopBar> {
             );
           }),
         ],
+      ),
+    );
+  }
+
+  /// 主题切换按钮：浅色/深色背景切换。
+  Widget _themeToggle() {
+    return ValueListenableBuilder<bool>(
+      valueListenable: isDark,
+      builder: (_, dark, _) => IconButton(
+        tooltip: dark ? '切换浅色背景' : '切换深色背景',
+        icon: Icon(dark ? Icons.light_mode : Icons.dark_mode, color: AppColors.textPrimary, size: 20),
+        onPressed: () => isDark.value = !isDark.value,
       ),
     );
   }

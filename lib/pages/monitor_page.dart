@@ -225,9 +225,24 @@ class _MonitorPageState extends State<MonitorPage> {
                 icon: const Icon(Icons.dashboard, size: 20),
                 label: const Text('控制台', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                 elevation: 2,
-                onPressed: () => showDialog<void>(
+                onPressed: () => showGeneralDialog(
                   context: context,
-                  builder: (_) => FaceDashboard(
+                  barrierDismissible: true,
+                  barrierLabel: '控制台',
+                  barrierColor: Colors.black54,
+                  transitionDuration: const Duration(milliseconds: 220),
+                  transitionBuilder: (context, animation, secondary, child) {
+                    final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
+                    return FadeTransition(
+                      opacity: curved,
+                      child: ScaleTransition(
+                        scale: Tween(begin: 0.85, end: 1.0).animate(curved),
+                        alignment: Alignment.bottomRight,
+                        child: child,
+                      ),
+                    );
+                  },
+                  pageBuilder: (_, _, _) => FaceDashboard(
                     command: svc.command,
                     statusPoll: svc.statusPoll,
                   ),
@@ -248,18 +263,21 @@ class _MonitorPageState extends State<MonitorPage> {
         sub: 'K230 / STM32 / 外设',
         valueSize: 16,
         tone: k230Online ? StatTone.green : StatTone.red,
+        icon: k230Online ? Icons.cloud_done : Icons.cloud_off,
       ),
       StatCard(
         label: '今日开门',
         value: '$_openCount',
         sub: '人脸/指纹/NFC/密码',
         tone: StatTone.accent,
+        icon: Icons.lock_open,
       ),
       StatCard(
         label: '今日报警',
         value: '$_alarmCount',
         sub: '陌生人 / 密码错误',
         tone: StatTone.red,
+        icon: Icons.warning_amber,
       ),
       StatCard(
         label: '画面人数',
@@ -267,6 +285,7 @@ class _MonitorPageState extends State<MonitorPage> {
         sub: '已知 ${status?.knownFaceCount ?? 0} / 未知 ${status?.unknownFaceCount ?? 0}',
         tone: StatTone.yellow,
         valueSize: 16,
+        icon: Icons.people_outline,
       ),
     ];
   }

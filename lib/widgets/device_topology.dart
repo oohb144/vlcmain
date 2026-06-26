@@ -55,36 +55,72 @@ class _TopoNode extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final accent = node.isCenter;
+    final nodeColor = accent ? AppColors.accent : AppColors.textPrimary;
     return Container(
       padding: EdgeInsets.all(node.compact ? 10 : 16),
       decoration: BoxDecoration(
-        color: accent ? AppColors.accentDim : AppColors.bgCard,
+        borderRadius: BorderRadius.circular(node.compact ? 8 : 10),
         border: Border.all(
           color: accent ? AppColors.accent : AppColors.border,
-          width: accent ? 2 : 1,
+          width: accent ? 1.5 : 1,
         ),
-        borderRadius: BorderRadius.circular(node.compact ? 8 : 10),
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: accent
+              ? [AppColors.accentDim, AppColors.bgCard]
+              : [AppColors.bgCard, AppColors.bgSecondary],
+        ),
+        boxShadow: accent
+            ? [BoxShadow(color: AppColors.accent.withValues(alpha: 0.25), blurRadius: 10, spreadRadius: 0)]
+            : null,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(node.icon, size: node.compact ? 20 : 28, color: accent ? AppColors.accent : AppColors.textPrimary),
+          Container(
+            width: node.compact ? 26 : 36,
+            height: node.compact ? 26 : 36,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: nodeColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(node.compact ? 6 : 8),
+            ),
+            child: Icon(node.icon, size: node.compact ? 16 : 22, color: nodeColor),
+          ),
           const SizedBox(height: 6),
           Text(
             node.name,
             style: TextStyle(
-              color: accent ? AppColors.accent : AppColors.textPrimary,
+              color: nodeColor,
               fontSize: node.compact ? 10 : 11,
               fontWeight: accent ? FontWeight.w700 : FontWeight.w600,
             ),
           ),
           const SizedBox(height: 2),
-          Text(
-            node.online ? '● 在线' : '● 离线',
-            style: TextStyle(
-              color: node.online ? AppColors.green : AppColors.textMuted,
-              fontSize: 10,
-            ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: node.online ? AppColors.green : AppColors.textMuted,
+                  shape: BoxShape.circle,
+                  boxShadow: node.online
+                      ? [BoxShadow(color: AppColors.green.withValues(alpha: 0.6), blurRadius: 4)]
+                      : null,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                node.online ? '在线' : '离线',
+                style: TextStyle(
+                  color: node.online ? AppColors.green : AppColors.textMuted,
+                  fontSize: 10,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -101,7 +137,19 @@ class _TopoLine extends StatelessWidget {
     return Container(
       width: 40,
       height: 2,
-      color: active ? AppColors.green : AppColors.border,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(1),
+        gradient: LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: active
+              ? [AppColors.green.withValues(alpha: 0.2), AppColors.green, AppColors.green.withValues(alpha: 0.2)]
+              : [AppColors.border, AppColors.textMuted.withValues(alpha: 0.5), AppColors.border],
+        ),
+        boxShadow: active
+            ? [BoxShadow(color: AppColors.green.withValues(alpha: 0.4), blurRadius: 3)]
+            : null,
+      ),
     );
   }
 }

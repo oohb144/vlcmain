@@ -12,6 +12,8 @@ class SwitchRow extends StatefulWidget {
   final Map<String, dynamic> onCmd;
   final Map<String, dynamic> offCmd;
   final CommandService command;
+  /// 命令下发后回调（label + ok + message），供上层展示当前状态指示。
+  final void Function(String label, bool ok, String message)? onResult;
 
   const SwitchRow({
     super.key,
@@ -19,6 +21,7 @@ class SwitchRow extends StatefulWidget {
     required this.onCmd,
     required this.offCmd,
     required this.command,
+    this.onResult,
   });
 
   @override
@@ -39,6 +42,7 @@ class _SwitchRowState extends State<SwitchRow> {
       if (res.ok) _on = want;
       _busy = false;
     });
+    widget.onResult?.call(widget.label, res.ok, res.message);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('${widget.label}: ${res.message}'),

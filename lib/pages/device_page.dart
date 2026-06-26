@@ -43,23 +43,31 @@ class _DevicePageState extends State<DevicePage> {
               title: '设备拓扑',
               icon: Icons.hub_outlined,
               trailing: _Tag('全部在线', AppColors.greenDim, AppColors.green),
-              child: DeviceTopology(nodes: [
-                const TopoNode(icon: Icons.camera_alt, name: 'K230 摄像头'),
-                const TopoNode(icon: Icons.mic, name: 'K230 麦克风'),
-                const TopoNode(icon: Icons.memory, name: 'STM32 主控', isCenter: true),
-                const TopoNode(icon: Icons.fingerprint, name: '指纹', compact: true),
-                const TopoNode(icon: Icons.nfc, name: 'NFC', compact: true),
-                const TopoNode(icon: Icons.dialpad, name: '键盘', compact: true),
-                const TopoNode(icon: Icons.screen_share, name: '显示屏', compact: true),
-              ]),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  DeviceTopology(nodes: [
+                    const TopoNode(icon: Icons.camera_alt, name: 'K230 摄像头'),
+                    const TopoNode(icon: Icons.mic, name: 'K230 麦克风'),
+                    const TopoNode(icon: Icons.memory, name: 'STM32 主控', isCenter: true),
+                    const TopoNode(icon: Icons.sensor_door, name: '门锁'),
+                    const TopoNode(icon: Icons.fingerprint, name: '指纹', compact: true),
+                    const TopoNode(icon: Icons.nfc, name: 'NFC', compact: true),
+                    const TopoNode(icon: Icons.dialpad, name: '键盘', compact: true),
+                    const TopoNode(icon: Icons.screen_share, name: '显示屏', compact: true),
+                  ]),
+                  const SizedBox(height: 12),
+                  const _LinkageRules(),
+                ],
+              ),
             ),
             const SizedBox(height: 12),
             // K230 配置
             CollapsePanel(
-              header: const Row(children: [
-                Icon(Icons.camera_alt, size: 18, color: AppColors.accent),
-                SizedBox(width: 8),
-                Text('K230 视觉模块'),
+              header: Row(children: [
+                _SectionIcon(Icons.camera_alt),
+                const SizedBox(width: 8),
+                const Text('K230 视觉模块'),
               ]),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -138,10 +146,10 @@ class _DevicePageState extends State<DevicePage> {
             ),
             // STM32 配置
             CollapsePanel(
-              header: const Row(children: [
-                Icon(Icons.memory, size: 18, color: AppColors.accent),
-                SizedBox(width: 8),
-                Text('STM32 主控'),
+              header: Row(children: [
+                _SectionIcon(Icons.memory),
+                const SizedBox(width: 8),
+                const Text('STM32 主控'),
               ]),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -176,10 +184,10 @@ class _DevicePageState extends State<DevicePage> {
             ),
             // 网络配置
             CollapsePanel(
-              header: const Row(children: [
-                Icon(Icons.wifi, size: 18, color: AppColors.green),
-                SizedBox(width: 8),
-                Text('网络通信'),
+              header: Row(children: [
+                _SectionIcon(Icons.wifi, color: AppColors.green),
+                const SizedBox(width: 8),
+                const Text('网络通信'),
               ]),
               trailing: _Tag('WiFi 已连接', AppColors.greenDim, AppColors.green),
               body: Column(
@@ -361,7 +369,7 @@ class _Card extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, size: 16, color: AppColors.textPrimary),
+              _SectionIcon(icon),
               const SizedBox(width: 8),
               Text(title, style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
               const Spacer(),
@@ -370,6 +378,118 @@ class _Card extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           child,
+        ],
+      ),
+    );
+  }
+}
+
+/// 分区标题色块图标（仿控制台风格）。
+class _SectionIcon extends StatelessWidget {
+  final IconData icon;
+  final Color? color;
+  const _SectionIcon(this.icon, {this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = color ?? AppColors.accent;
+    return Container(
+      width: 24,
+      height: 24,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: c.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Icon(icon, size: 14, color: c),
+    );
+  }
+}
+
+/// 联动规则可视化：开门组（人脸/指纹/NFC/密码 → 门锁）+ 报警组（陌生人 → 报警+录像）。
+class _LinkageRules extends StatelessWidget {
+  const _LinkageRules();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.bgHover,
+        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              _SectionIcon(Icons.account_tree_outlined, color: AppColors.accent),
+              const SizedBox(width: 8),
+              const Text('联动规则',
+                  style: TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // 开门组
+          _ruleRow(
+            inputs: const [
+              (Icons.face, '人脸'),
+              (Icons.fingerprint, '指纹'),
+              (Icons.nfc, 'NFC'),
+              (Icons.dialpad, '密码'),
+            ],
+            outputIcon: Icons.lock_open,
+            outputLabel: '开门',
+            color: AppColors.green,
+          ),
+          const SizedBox(height: 8),
+          // 报警组
+          _ruleRow(
+            inputs: const [(Icons.person_off, '陌生人')],
+            outputIcon: Icons.warning,
+            outputLabel: '报警 + 录像',
+            color: AppColors.red,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _ruleRow({
+    required List<(IconData, String)> inputs,
+    required IconData outputIcon,
+    required String outputLabel,
+    required Color color,
+  }) {
+    return Row(
+      children: [
+        ...inputs.map((e) => Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: _chip(e.$1, e.$2, AppColors.textSecondary),
+            )),
+        Icon(Icons.arrow_right_alt, size: 18, color: color),
+        const SizedBox(width: 6),
+        _chip(outputIcon, outputLabel, color, filled: true),
+      ],
+    );
+  }
+
+  Widget _chip(IconData icon, String label, Color color, {bool filled = false}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: filled ? color.withValues(alpha: 0.18) : AppColors.bgCard,
+        border: Border.all(color: color.withValues(alpha: 0.5)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: color),
+          const SizedBox(width: 4),
+          Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w500)),
         ],
       ),
     );

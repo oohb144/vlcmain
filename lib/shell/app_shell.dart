@@ -223,7 +223,7 @@ class _SideRail extends StatelessWidget {
                     ),
                     borderRadius: BorderRadius.all(Radius.circular(8)),
                   ),
-                  child: const Text('M', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                  child: const Text('M', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 16)),
                 ),
                 const SizedBox(width: 10),
                 const Column(
@@ -284,15 +284,38 @@ class _RailItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? AppColors.accentDim : Colors.transparent,
+      color: Colors.transparent,
       borderRadius: BorderRadius.circular(6),
       child: InkWell(
         borderRadius: BorderRadius.circular(6),
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(6),
+            gradient: selected
+                ? const LinearGradient(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    colors: [AppColors.accentDim, Color(0x0058A6FF)],
+                  )
+                : null,
+          ),
           child: Row(
             children: [
+              // 选中态左侧竖条指示
+              Container(
+                width: 3,
+                height: 16,
+                margin: const EdgeInsets.only(right: 10),
+                decoration: BoxDecoration(
+                  color: selected ? AppColors.accent : Colors.transparent,
+                  borderRadius: BorderRadius.circular(2),
+                  boxShadow: selected
+                      ? [BoxShadow(color: AppColors.accent.withValues(alpha: 0.6), blurRadius: 4)]
+                      : null,
+                ),
+              ),
               Icon(
                 selected ? dest.selectedIcon : dest.icon,
                 size: 18,
@@ -304,7 +327,7 @@ class _RailItem extends StatelessWidget {
                 style: TextStyle(
                   color: selected ? AppColors.accent : AppColors.textSecondary,
                   fontSize: 13,
-                  fontWeight: selected ? FontWeight.w500 : FontWeight.normal,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
                 ),
               ),
             ],
