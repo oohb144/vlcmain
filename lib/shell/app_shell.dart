@@ -111,9 +111,9 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     if (!_ready) {
-      return const Scaffold(
-        backgroundColor: AppColors.bgPrimary,
-        body: Center(child: CircularProgressIndicator()),
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: const Center(child: CircularProgressIndicator()),
       );
     }
 
@@ -161,7 +161,6 @@ class _AppShellState extends State<AppShell> {
 
           if (wide) {
             return Scaffold(
-              backgroundColor: AppColors.bgPrimary,
               body: Row(
                 children: [
                   _SideRail(
@@ -176,7 +175,6 @@ class _AppShellState extends State<AppShell> {
             );
           }
           return Scaffold(
-            backgroundColor: AppColors.bgPrimary,
             body: body,
             bottomNavigationBar: _BottomNav(
               index: _index,
@@ -211,29 +209,40 @@ class _SideRail extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  alignment: Alignment.center,
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [AppColors.accent, AppColors.purple],
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.asset(
+                    'image.png',
+                    width: 32,
+                    height: 32,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, _, _) => Container(
+                      width: 32,
+                      height: 32,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [AppColors.accent, AppColors.purple],
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text('校', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
                     ),
-                    borderRadius: BorderRadius.all(Radius.circular(8)),
                   ),
-                  child: const Text('M', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 16)),
                 ),
                 const SizedBox(width: 10),
-                const Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('智能门禁管理',
-                      style: TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
-                    Text('Access Control System',
-                      style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
-                  ],
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('智能家居系统',
+                        style: TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600)),
+                      Text('门禁节点',
+                        style: TextStyle(color: AppColors.accent, fontSize: 13, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -264,10 +273,30 @@ class _SideRail extends StatelessWidget {
             ),
           ),
           Container(
-            padding: const EdgeInsets.symmetric(vertical: 12),
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
             decoration: const BoxDecoration(border: Border(top: BorderSide(color: AppColors.border))),
-            child: const Text('v1.0.0 | K230 + STM32',
-              style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('做中学项目',
+                    style: TextStyle(color: AppColors.accent, fontSize: 11, fontWeight: FontWeight.w600)),
+                SizedBox(height: 4),
+                Text('成员',
+                    style: TextStyle(color: AppColors.textMuted, fontSize: 10)),
+                Text('2405024222 万博翔',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 10)),
+                Text('2405024212 李胤彤',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 10)),
+                Text('2405024115 李伟祺',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 10)),
+                Text('2405024325 郝睿宸',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 10)),
+                SizedBox(height: 6),
+                Text('v1.0.0 | K230 + STM32',
+                    style: TextStyle(color: AppColors.textMuted, fontSize: 10)),
+              ],
+            ),
           ),
         ],
       ),

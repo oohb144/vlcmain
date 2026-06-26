@@ -20,7 +20,7 @@ class _VlcAppState extends State<VlcApp> {
     return ValueListenableBuilder<bool>(
       valueListenable: isDark,
       builder: (_, dark, _) => MaterialApp(
-        title: '智能门禁管理系统',
+        title: '智能家居系统门禁节点',
         debugShowCheckedModeBanner: false,
         theme: appTheme.copyWith(
           // 切换背景：深色模式用近黑深蓝，浅色模式用浅蓝白
