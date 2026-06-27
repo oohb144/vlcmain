@@ -18,6 +18,9 @@ class StreamConfig {
   /// 状态轮询间隔（毫秒）
   final int pollIntervalMs;
 
+  /// 是否启用「识别到人脸自动录像」（本机侧，基于 /status 的 face_count）
+  final bool autoFaceRecord;
+
   const StreamConfig({
     this.rtspUrl = 'rtsp://192.168.1.100:8554/stream',
     this.statusUrl = 'http://192.168.1.100/status',
@@ -25,6 +28,7 @@ class StreamConfig {
     this.recordDir = '',
     this.ffmpegPath = 'ffmpeg',
     this.pollIntervalMs = 1000,
+    this.autoFaceRecord = true,
   });
 
   StreamConfig copyWith({
@@ -34,6 +38,7 @@ class StreamConfig {
     String? recordDir,
     String? ffmpegPath,
     int? pollIntervalMs,
+    bool? autoFaceRecord,
   }) {
     return StreamConfig(
       rtspUrl: rtspUrl ?? this.rtspUrl,
@@ -42,6 +47,7 @@ class StreamConfig {
       recordDir: recordDir ?? this.recordDir,
       ffmpegPath: ffmpegPath ?? this.ffmpegPath,
       pollIntervalMs: pollIntervalMs ?? this.pollIntervalMs,
+      autoFaceRecord: autoFaceRecord ?? this.autoFaceRecord,
     );
   }
 
@@ -52,6 +58,7 @@ class StreamConfig {
         'recordDir': recordDir,
         'ffmpegPath': ffmpegPath,
         'pollIntervalMs': pollIntervalMs,
+        'autoFaceRecord': autoFaceRecord,
       };
 
   factory StreamConfig.fromJson(Map<String, dynamic> json) => StreamConfig(
@@ -66,5 +73,8 @@ class StreamConfig {
             const StreamConfig().ffmpegPath,
         pollIntervalMs:
             json['pollIntervalMs'] as int? ?? const StreamConfig().pollIntervalMs,
+        autoFaceRecord: json['autoFaceRecord'] is bool
+            ? json['autoFaceRecord'] as bool
+            : const StreamConfig().autoFaceRecord,
       );
 }

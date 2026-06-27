@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/device_status.dart';
 import '../models/stream_config.dart';
 import '../services/command_service.dart';
+import '../services/face_record_service.dart';
 import '../services/recorder_service.dart';
 import '../services/rtsp_service.dart';
 import '../services/status_poll_service.dart';
@@ -16,6 +17,7 @@ class AppServices {
   final RecorderService recorder;
   final StatusPollService statusPoll;
   final CommandService command;
+  final FaceRecordService faceRecord;
   final StreamConfig config;
 
   AppServices({
@@ -23,6 +25,7 @@ class AppServices {
     required this.recorder,
     required this.statusPoll,
     required this.command,
+    required this.faceRecord,
     required this.config,
   });
 

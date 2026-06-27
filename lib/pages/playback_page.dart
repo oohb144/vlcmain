@@ -25,6 +25,8 @@ class _PlaybackPageState extends State<PlaybackPage> {
   String _dir = '';
   String? _currentPlaying;
   String? _playError; // 播放本地文件失败时的 mpv 错误，显示在播放器下方
+  String? _initialPath; // 从路由 arguments 带入的「自动播放此录像」路径
+  bool _didInit = false;
   StreamSubscription<String>? _errSub;
   StreamSubscription<PlayerLog>? _logSub;
 
@@ -51,6 +53,16 @@ class _PlaybackPageState extends State<PlaybackPage> {
         debugPrint('[playback][mpv] ${log.prefix}/${log.level}: ${log.text}');
       }
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_didInit) return;
+    _didInit = true;
+    // 监控页「识别录像日志」点条目跳转时会带 videoPath 作为 arguments
+    final arg = ModalRoute.of(context)?.settings.arguments;
+    if (arg is String && arg.isNotEmpty) _initialPath = arg;
     _load();
   }
 
@@ -72,6 +84,19 @@ class _PlaybackPageState extends State<PlaybackPage> {
       _dir = c.recordDir;
       final list = await _service.listRecordings(c.recordDir);
       if (mounted) setState(() => _recordings = list);
+      // 若带入了初始路径（从日志跳来），自动播放对应录像
+      final init = _initialPath;
+      if (init != null && init.isNotEmpty) {
+        _initialPath = null;
+        Recording? match;
+        for (final r in list) {
+          if (r.path == init) {
+            match = r;
+            break;
+          }
+        }
+        if (match != null && mounted) await _play(match);
+      }
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
     } finally {

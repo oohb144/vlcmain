@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
+import '../models/face_record_event.dart';
 import '../shell/app_services.dart';
 import '../shell/cmd_constants.dart';
 import '../shell/nav_destinations.dart';
@@ -27,6 +29,7 @@ class _MonitorPageState extends State<MonitorPage> {
   List<String> _lastLabels = const [];
   int _openCount = 0;
   int _alarmCount = 0;
+  bool _lastAutoRec = false;
 
   static const _maxEvents = 50;
 
@@ -36,16 +39,20 @@ class _MonitorPageState extends State<MonitorPage> {
     final svc = AppServices.of(context);
     if (!identical(svc, _svc)) {
       _svc?.statusPoll.status.removeListener(_onStatus);
+      _svc?.faceRecord.recording.removeListener(_onAutoRec);
       _svc = svc;
       svc.statusPoll.status.addListener(_onStatus);
+      svc.faceRecord.recording.addListener(_onAutoRec);
       // 首次绑定立即用当前值推一次
       _onStatus();
+      _lastAutoRec = svc.faceRecord.recording.value;
     }
   }
 
   @override
   void dispose() {
     _svc?.statusPoll.status.removeListener(_onStatus);
+    _svc?.faceRecord.recording.removeListener(_onAutoRec);
     super.dispose();
   }
 
@@ -83,6 +90,20 @@ class _MonitorPageState extends State<MonitorPage> {
 
     _lastState = state;
     _lastLabels = List.unmodifiable(labels);
+    if (mounted) setState(() {});
+  }
+
+  /// 自动录像状态翻转 → 推一条事件到「实时事件」。
+  void _onAutoRec() {
+    final v = _svc?.faceRecord.recording.value ?? false;
+    if (v && !_lastAutoRec) {
+      _push(EventKind.info, '开始自动录像', '识别到人脸');
+    } else if (!v && _lastAutoRec) {
+      final log = _svc?.faceRecord.log.value ?? const <FaceRecordEvent>[];
+      final dur = log.isNotEmpty ? log.first.durationSec : 0;
+      _push(EventKind.info, '已停止自动录像', '时长 ${dur}s');
+    }
+    _lastAutoRec = v;
     if (mounted) setState(() {});
   }
 
@@ -131,7 +152,7 @@ class _MonitorPageState extends State<MonitorPage> {
       builder: (context, c) {
         final wide = c.maxWidth >= kBreakpoint;
 
-        // 右栏：事件流 + 主操作
+        // 右栏：事件流 + 识别录像日志 + 主操作
         final rightColumn = Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -142,6 +163,8 @@ class _MonitorPageState extends State<MonitorPage> {
               trailing: _Tag('今日 ${_events.length} 条', AppColors.accentDim, AppColors.accent),
               child: EventStream(items: _events),
             ),
+            const SizedBox(height: 12),
+            _FaceRecordLogCard(svc: svc),
             const SizedBox(height: 12),
             _Card(
               title: '主操作',
@@ -489,6 +512,99 @@ class _Tag extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
       child: Text(text, style: TextStyle(color: fg, fontSize: 11, fontWeight: FontWeight.w500)),
+    );
+  }
+}
+
+/// 识别录像日志卡片：列出 [FaceRecordService.log] 中的历史录像事件，
+/// 带索引号；点击条目跳转回放页并自动播放对应录像。
+class _FaceRecordLogCard extends StatelessWidget {
+  final AppServices svc;
+  const _FaceRecordLogCard({required this.svc});
+
+  @override
+  Widget build(BuildContext context) {
+    return _Card(
+      title: '识别录像日志',
+      icon: Icons.video_library,
+      trailing: ValueListenableBuilder<List<FaceRecordEvent>>(
+        valueListenable: svc.faceRecord.log,
+        builder: (_, list, _) =>
+            _Tag('${list.length} 条', AppColors.greenDim, AppColors.green),
+      ),
+      child: ValueListenableBuilder<List<FaceRecordEvent>>(
+        valueListenable: svc.faceRecord.log,
+        builder: (_, list, _) {
+          if (list.isEmpty) {
+            return SizedBox(
+              height: 56,
+              child: const Center(
+                child: Text('暂无识别录像',
+                    style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+              ),
+            );
+          }
+          final shown = list.length > 50 ? list.sublist(0, 50) : list;
+          return Container(
+            constraints: const BoxConstraints(maxHeight: 320),
+            child: ListView.separated(
+              shrinkWrap: true,
+              itemCount: shown.length,
+              separatorBuilder: (_, _) => const Divider(height: 1, color: AppColors.border),
+              itemBuilder: (_, i) => _FaceLogTile(
+                ev: shown[i],
+                onTap: () => Navigator.pushNamed(
+                  context,
+                  '/playback',
+                  arguments: shown[i].videoPath,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _FaceLogTile extends StatelessWidget {
+  final FaceRecordEvent ev;
+  final VoidCallback onTap;
+  const _FaceLogTile({required this.ev, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final dt = DateTime.tryParse(ev.startIso);
+    final timeStr = dt == null
+        ? ev.startIso
+        : DateFormat('MM-dd HH:mm:ss').format(dt.toLocal());
+    final labels =
+        ev.faceLabels.isEmpty ? '' : ' · ${ev.faceLabels.join(', ')}';
+    final stranger = ev.hasStranger ? ' · 含陌生人' : '';
+    return ListTile(
+      dense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+      leading: SizedBox(
+        width: 34,
+        child: Text('#${ev.id}',
+            style: const TextStyle(
+                color: AppColors.accent,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                fontFamily: 'Consolas')),
+      ),
+      title: Text('$timeStr  ·  ${ev.durationSec}s',
+          style: const TextStyle(fontSize: 12, color: AppColors.textPrimary)),
+      subtitle: Text(
+        '${ev.videoName} · 人数 ${ev.maxFaceCount}$stranger$labels',
+        style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      trailing: ev.hasStranger
+          ? _Tag('陌生人', AppColors.redDim, AppColors.red)
+          : const Icon(Icons.play_circle_outline, size: 20, color: AppColors.accent),
+      onTap: onTap,
     );
   }
 }

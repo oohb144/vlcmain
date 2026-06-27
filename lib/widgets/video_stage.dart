@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../models/device_status.dart';
 import '../shell/app_services.dart';
 import '../shell/cmd_constants.dart';
 import '../services/recorder_service.dart';
@@ -252,6 +253,37 @@ class _VideoStageState extends State<VideoStage> {
     });
   }
 
+  /// 录制角标：手动录制 [isRecording] 或自动录像（监听 faceRecord.recording）。
+  Widget _maybeRecBadge() {
+    final svc = _svc;
+    if (svc == null) {
+      return _isRecording ? _recBadge(false) : const SizedBox.shrink();
+    }
+    return ValueListenableBuilder<bool>(
+      valueListenable: svc.faceRecord.recording,
+      builder: (_, autoRec, _) {
+        final show = _isRecording || autoRec;
+        if (!show) return const SizedBox.shrink();
+        return _recBadge(autoRec);
+      },
+    );
+  }
+
+  Widget _recBadge(bool auto) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const StatusDot(state: StatusDotState.alarm, size: 8),
+        const SizedBox(width: 4),
+        Text(
+          auto ? 'AUTO REC' : 'REC',
+          style: const TextStyle(
+              color: AppColors.red, fontSize: 11, fontFamily: 'Consolas'),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = _svc?.rtsp.controller;
@@ -292,21 +324,19 @@ class _VideoStageState extends State<VideoStage> {
                   right: 12,
                   child: _OsdText('K230-CAM01', dim: true),
                 ),
-                // 录制角标
-                if (_isRecording)
-                  const Positioned(
-                    top: 10,
-                    right: 12,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        StatusDot(state: StatusDotState.alarm, size: 8),
-                        SizedBox(width: 4),
-                        Text('REC',
-                          style: TextStyle(color: AppColors.red, fontSize: 11, fontFamily: 'Consolas')),
-                      ],
-                    ),
+                // OSD 左下：识别情况 / 陌生人 / 自动录像（监听状态与自动录像服务）
+                if (_svc != null)
+                  Positioned(
+                    bottom: 10,
+                    left: 12,
+                    child: _FaceOsd(svc: _svc!),
                   ),
+                // 录制角标（手动 _isRecording 或 自动 faceRecord.recording）
+                Positioned(
+                  top: 10,
+                  right: 12,
+                  child: _maybeRecBadge(),
+                ),
               ],
             ),
           ),
@@ -467,6 +497,104 @@ class _OsdText extends StatelessWidget {
     );
   }
 }
+
+/// 左下角 OSD：识别情况 / 人数 / 陌生人 / 自动录像时长。
+///
+/// 监听 [AppServices.statusPoll] 的状态与 [AppServices.faceRecord] 的自动录像
+/// 事件；自带 1s 心跳刷新「自动录像中 Xs」时长。
+class _FaceOsd extends StatefulWidget {
+  final AppServices svc;
+  const _FaceOsd({required this.svc});
+
+  @override
+  State<_FaceOsd> createState() => _FaceOsdState();
+}
+
+class _FaceOsdState extends State<_FaceOsd> {
+  Timer? _t;
+  DeviceStatus? _status;
+  bool _autoRec = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _status = widget.svc.statusPoll.status.value;
+    _autoRec = widget.svc.faceRecord.recording.value;
+    widget.svc.statusPoll.status.addListener(_onStatus);
+    widget.svc.faceRecord.recording.addListener(_onRec);
+    _t = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _t?.cancel();
+    widget.svc.statusPoll.status.removeListener(_onStatus);
+    widget.svc.faceRecord.recording.removeListener(_onRec);
+    super.dispose();
+  }
+
+  void _onStatus() {
+    if (!mounted) return;
+    setState(() => _status = widget.svc.statusPoll.status.value);
+  }
+
+  void _onRec() {
+    if (!mounted) return;
+    setState(() => _autoRec = widget.svc.faceRecord.recording.value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = _status;
+    final cur = widget.svc.faceRecord.current.value;
+    final known = s?.knownFaceCount ?? 0;
+    final unknown = s?.unknownFaceCount ?? 0;
+    final hasStranger = unknown > 0;
+    final rows = <Widget>[
+      _row('识别', s?.state ?? '等待状态…'),
+      _row('人数', '已知 $known / 未知 $unknown'),
+      _row(
+        '陌生人',
+        hasStranger ? '⚠ 有陌生人' : '无陌生人',
+        color: hasStranger ? const Color(0xFFE8727A) : const Color(0xFF4EC07A),
+      ),
+    ];
+    if (_autoRec && cur != null) {
+      rows.add(_row('自动录像', '● 录制中 ${cur.durationSec}s',
+          color: const Color(0xFFE8727A)));
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: rows,
+      ),
+    );
+  }
+
+  Widget _row(String label, String value, {Color? color}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 1),
+      child: Text(
+        '$label  $value',
+        style: TextStyle(
+          color: color ?? const Color(0xB3FFFFFF),
+          fontSize: 11,
+          fontFamily: 'Consolas',
+          shadows: const [Shadow(color: Colors.black54, blurRadius: 3)],
+        ),
+      ),
+    );
+  }
+}
+
 
 enum _ToolTone { neutral, primary, danger }
 

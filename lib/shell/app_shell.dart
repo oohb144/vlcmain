@@ -6,6 +6,7 @@ import '../pages/monitor_page.dart';
 import '../pages/peripheral_page.dart';
 import '../services/command_service.dart';
 import '../services/config_service.dart';
+import '../services/face_record_service.dart';
 import '../services/recorder_service.dart';
 import '../services/rtsp_service.dart';
 import '../services/status_poll_service.dart';
@@ -30,6 +31,7 @@ class _AppShellState extends State<AppShell> {
   late final RecorderService _recorder;
   late StatusPollService _statusPoll;
   late CommandService _command;
+  late FaceRecordService _faceRecord;
   late AppServices _svc;
   int _index = 0;
   bool _ready = false;
@@ -45,23 +47,35 @@ class _AppShellState extends State<AppShell> {
     final c = await ConfigService.load();
     _statusPoll = StatusPollService(statusUrl: c.statusUrl, intervalMs: c.pollIntervalMs);
     _command = CommandService(c.commandUrl);
+    _faceRecord = FaceRecordService(
+      recorder: _recorder,
+      statusPoll: _statusPoll,
+      config: c,
+    )..start();
     _svc = AppServices(
       rtsp: _rtsp,
       recorder: _recorder,
       statusPoll: _statusPoll,
       command: _command,
+      faceRecord: _faceRecord,
       config: c,
     );
     if (mounted) setState(() => _ready = true);
   }
 
-  /// 设置页返回后用最新配置重建 statusPoll/command（rtsp/recorder 保留）。
+  /// 设置页返回后用最新配置重建 statusPoll/command/faceRecord（rtsp/recorder 保留）。
   Future<void> _reloadConfig() async {
     final c = await ConfigService.load();
     final wasRunning = _statusPoll.isRunning;
+    _faceRecord.dispose();
     _statusPoll.dispose();
     _statusPoll = StatusPollService(statusUrl: c.statusUrl, intervalMs: c.pollIntervalMs);
     _command = CommandService(c.commandUrl);
+    _faceRecord = FaceRecordService(
+      recorder: _recorder,
+      statusPoll: _statusPoll,
+      config: c,
+    )..start();
     if (wasRunning) _statusPoll.start();
     if (!mounted) return;
     setState(() {
@@ -70,6 +84,7 @@ class _AppShellState extends State<AppShell> {
         recorder: _recorder,
         statusPoll: _statusPoll,
         command: _command,
+        faceRecord: _faceRecord,
         config: c,
       );
     });
@@ -77,6 +92,7 @@ class _AppShellState extends State<AppShell> {
 
   @override
   void dispose() {
+    _faceRecord.dispose();
     _statusPoll.dispose();
     _recorder.dispose();
     _rtsp.dispose();

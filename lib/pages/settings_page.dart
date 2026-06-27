@@ -36,6 +36,7 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _lastCmdOk = false;
   bool _saving = false;
   bool _ready = false;
+  bool _autoFaceRecord = true;
 
   @override
   void initState() {
@@ -56,6 +57,7 @@ class _SettingsPageState extends State<SettingsPage> {
     _ffmpegPath =
         TextEditingController(text: c.ffmpegPath.isEmpty ? 'ffmpeg' : c.ffmpegPath);
     _pollMs = TextEditingController(text: c.pollIntervalMs.toString());
+    _autoFaceRecord = c.autoFaceRecord;
     _cmdService = CommandService(c.commandUrl);
     _statusPoll = StatusPollService(statusUrl: c.statusUrl, intervalMs: c.pollIntervalMs);
     _statusPoll!.start();
@@ -108,6 +110,7 @@ class _SettingsPageState extends State<SettingsPage> {
           ? 'ffmpeg'
           : _ffmpegPath!.text.trim(),
       pollIntervalMs: poll < 200 ? 200 : poll,
+      autoFaceRecord: _autoFaceRecord,
     );
     await ConfigService.save(config);
     if (mounted) {
@@ -197,6 +200,16 @@ class _SettingsPageState extends State<SettingsPage> {
                       if (n == null || n < 200) return '最小 200ms';
                       return null;
                     },
+                  ),
+                  const SizedBox(height: 12),
+                  // 本机侧：识别到人脸自动录像开关（依据 /status 的 face_count）
+                  SwitchListTile(
+                    value: _autoFaceRecord,
+                    onChanged: (v) => setState(() => _autoFaceRecord = v),
+                    title: const Text('识别到人脸自动录像',
+                        style: TextStyle(color: AppColors.green, fontSize: 14, fontWeight: FontWeight.w600)),
+                    subtitle: const Text('画面出现人脸自动录像，无人脸 3s 后停止；录像写入识别日志'),
+                    contentPadding: EdgeInsets.zero,
                   ),
                   const SizedBox(height: 24),
                   // 调试功能：直接下发设备开关指令（无需推流即可调试下位机）
