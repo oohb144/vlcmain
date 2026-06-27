@@ -159,23 +159,34 @@ class _AppShellState extends State<AppShell> {
             ],
           );
 
+          // 顶部留出状态栏（edge-to-edge 下避免顶栏被刘海/状态栏遮挡）；
+          // 底部交给 Scaffold 的 bottomNavigationBar 处理 inset。
+          final safeTop = MediaQuery.of(context).padding.top;
+          final paddedBody = Padding(
+            padding: EdgeInsets.only(top: safeTop),
+            child: body,
+          );
+
           if (wide) {
             return Scaffold(
               body: Row(
                 children: [
-                  _SideRail(
-                    index: _index,
-                    onChanged: (i) => setState(() => _index = i),
-                    onSettings: _openSettings,
+                  Padding(
+                    padding: EdgeInsets.only(top: safeTop),
+                    child: _SideRail(
+                      index: _index,
+                      onChanged: (i) => setState(() => _index = i),
+                      onSettings: _openSettings,
+                    ),
                   ),
                   const VerticalDivider(width: 1, color: AppColors.border),
-                  Expanded(child: body),
+                  Expanded(child: paddedBody),
                 ],
               ),
             );
           }
           return Scaffold(
-            body: body,
+            body: paddedBody,
             bottomNavigationBar: _BottomNav(
               index: _index,
               onChanged: (i) => setState(() => _index = i),
