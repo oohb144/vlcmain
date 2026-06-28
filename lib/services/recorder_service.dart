@@ -4,6 +4,7 @@ import 'package:path/path.dart' as p;
 
 import 'rtsp_service.dart';
 import 'ffmpeg_recorder_service.dart';
+import 'ffmpeg_kit_recorder_service.dart';
 
 /// 录像服务统一接口。
 ///
@@ -11,9 +12,9 @@ import 'ffmpeg_recorder_service.dart';
 /// - 桌面端（Windows/Linux/macOS）：[FfmpegRecorderService]，spawn ffmpeg
 ///   子进程独立拉 RTSP 流，`-c copy` 不转码落盘 `.ts`。独立于播放器，
 ///   不影响推流播放，是桌面端最可靠的方式。
-/// - 移动端（Android）：[MpvRecorderService]，借助 mpv 的 `stream-record`
-///   属性，随播放器 open 一起把原始流复制到本地文件。Android 无系统 ffmpeg
-///   二进制，只能走这条路。
+/// - 移动端（Android）：[FfmpegKitRecorderService]，用 FFmpegKit 库内调用
+///   拉 RTSP 流落盘。media_kit 的 Android 预编译 libmpv 未编入输出 muxer，
+///   mpv `stream-record` 在 Android 写不出文件，只能改走 FFmpegKit。
 abstract class RecorderService {
   bool get isRecording;
   String? get currentFile;
@@ -33,7 +34,12 @@ abstract class RecorderService {
 
 /// 按平台创建录像服务。
 RecorderService createRecorder(RtspService rtsp) {
-  if (Platform.isAndroid || Platform.isIOS) {
+  if (Platform.isAndroid) {
+    // Android：FFmpegKit 库内调用（自带 ffmpeg，无需外部二进制）。
+    return FfmpegKitRecorderService();
+  }
+  if (Platform.isIOS) {
+    // iOS：暂用 mpv stream-record（如需可靠录像可同样接 FFmpegKit，先不管）。
     return MpvRecorderService(rtsp);
   }
   // 桌面端用 ffmpeg 子进程
@@ -89,15 +95,42 @@ class MpvRecorderService implements RecorderService {
     _url = rtspUrl;
     _currentFile = path;
     try {
-      // 顺序很重要：先切可寻址缓存参数，再设 stream-record，最后 open
+      // 先停掉当前流，保证 open 时 mpv 真正重建流并读取 stream-record
+      // （对已在播的同 URL，open 可能不重建，导致 stream-record 不生效）
+      await _rtsp.stop();
+      // 顺序很重要：先切内存缓存参数，再设 stream-record，最后 open
       await _rtsp.applyRecordablePrefs();
       await _rtsp.setProperty('stream-record', path);
       await _rtsp.open(rtspUrl, recordPath: path);
+      // 落盘校验：open 后等 1.5s，确认文件已出现且在增长，否则判定未生效
+      final ok = await _verifyRecordingStarted(path);
+      if (!ok) {
+        // 回滚：清掉 stream-record，避免角标假亮
+        try {
+          await _rtsp.setProperty('stream-record', '');
+        } catch (_) {}
+        _currentFile = null;
+        throw Exception('mpv 录像未生效（未生成文件），可能不兼容此流');
+      }
     } catch (e) {
       _currentFile = null;
       throw Exception('开始录像失败: $e');
     }
     return path;
+  }
+
+  /// 校验录像文件是否真的开始写入：等 1.5s 后检查文件存在且 size>0。
+  Future<bool> _verifyRecordingStarted(String path) async {
+    try {
+      final f = File(path);
+      for (var i = 0; i < 3; i++) {
+        await Future.delayed(const Duration(milliseconds: 500));
+        if (await f.exists() && (await f.length()) > 0) {
+          return true;
+        }
+      }
+    } catch (_) {}
+    return false;
   }
 
   @override

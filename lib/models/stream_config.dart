@@ -21,6 +21,15 @@ class StreamConfig {
   /// 是否启用「识别到人脸自动录像」（本机侧，基于 /status 的 face_count）
   final bool autoFaceRecord;
 
+  /// 设备开关的上位机侧记忆状态（与下位机 config.py 默认值对齐）。
+  /// 切换时即时落盘，重启后恢复，免去每次重新点。
+  final bool devStreamOn;
+  final bool devRtspOn;
+  final bool devAudioOn;
+  final bool devLedOn;
+  final bool devVoiceOn;
+  final bool devAutoRecordOn;
+
   const StreamConfig({
     this.rtspUrl = 'rtsp://192.168.1.100:8554/stream',
     this.statusUrl = 'http://192.168.1.100/status',
@@ -29,6 +38,12 @@ class StreamConfig {
     this.ffmpegPath = 'ffmpeg',
     this.pollIntervalMs = 1000,
     this.autoFaceRecord = true,
+    this.devStreamOn = false,
+    this.devRtspOn = false,
+    this.devAudioOn = true,
+    this.devLedOn = false,
+    this.devVoiceOn = false,
+    this.devAutoRecordOn = true,
   });
 
   StreamConfig copyWith({
@@ -39,6 +54,12 @@ class StreamConfig {
     String? ffmpegPath,
     int? pollIntervalMs,
     bool? autoFaceRecord,
+    bool? devStreamOn,
+    bool? devRtspOn,
+    bool? devAudioOn,
+    bool? devLedOn,
+    bool? devVoiceOn,
+    bool? devAutoRecordOn,
   }) {
     return StreamConfig(
       rtspUrl: rtspUrl ?? this.rtspUrl,
@@ -48,6 +69,12 @@ class StreamConfig {
       ffmpegPath: ffmpegPath ?? this.ffmpegPath,
       pollIntervalMs: pollIntervalMs ?? this.pollIntervalMs,
       autoFaceRecord: autoFaceRecord ?? this.autoFaceRecord,
+      devStreamOn: devStreamOn ?? this.devStreamOn,
+      devRtspOn: devRtspOn ?? this.devRtspOn,
+      devAudioOn: devAudioOn ?? this.devAudioOn,
+      devLedOn: devLedOn ?? this.devLedOn,
+      devVoiceOn: devVoiceOn ?? this.devVoiceOn,
+      devAutoRecordOn: devAutoRecordOn ?? this.devAutoRecordOn,
     );
   }
 
@@ -59,6 +86,12 @@ class StreamConfig {
         'ffmpegPath': ffmpegPath,
         'pollIntervalMs': pollIntervalMs,
         'autoFaceRecord': autoFaceRecord,
+        'devStreamOn': devStreamOn,
+        'devRtspOn': devRtspOn,
+        'devAudioOn': devAudioOn,
+        'devLedOn': devLedOn,
+        'devVoiceOn': devVoiceOn,
+        'devAutoRecordOn': devAutoRecordOn,
       };
 
   factory StreamConfig.fromJson(Map<String, dynamic> json) => StreamConfig(
@@ -76,5 +109,23 @@ class StreamConfig {
         autoFaceRecord: json['autoFaceRecord'] is bool
             ? json['autoFaceRecord'] as bool
             : const StreamConfig().autoFaceRecord,
+        devStreamOn: json['devStreamOn'] is bool
+            ? json['devStreamOn'] as bool
+            : const StreamConfig().devStreamOn,
+        devRtspOn: json['devRtspOn'] is bool
+            ? json['devRtspOn'] as bool
+            : const StreamConfig().devRtspOn,
+        devAudioOn: json['devAudioOn'] is bool
+            ? json['devAudioOn'] as bool
+            : const StreamConfig().devAudioOn,
+        devLedOn: json['devLedOn'] is bool
+            ? json['devLedOn'] as bool
+            : const StreamConfig().devLedOn,
+        devVoiceOn: json['devVoiceOn'] is bool
+            ? json['devVoiceOn'] as bool
+            : const StreamConfig().devVoiceOn,
+        devAutoRecordOn: json['devAutoRecordOn'] is bool
+            ? json['devAutoRecordOn'] as bool
+            : const StreamConfig().devAutoRecordOn,
       );
 }

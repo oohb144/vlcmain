@@ -37,6 +37,7 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _saving = false;
   bool _ready = false;
   bool _autoFaceRecord = true;
+  StreamConfig? _config; // 持有已加载配置，开关状态从中读取/落盘
 
   @override
   void initState() {
@@ -58,10 +59,28 @@ class _SettingsPageState extends State<SettingsPage> {
         TextEditingController(text: c.ffmpegPath.isEmpty ? 'ffmpeg' : c.ffmpegPath);
     _pollMs = TextEditingController(text: c.pollIntervalMs.toString());
     _autoFaceRecord = c.autoFaceRecord;
+    _config = c;
     _cmdService = CommandService(c.commandUrl);
     _statusPoll = StatusPollService(statusUrl: c.statusUrl, intervalMs: c.pollIntervalMs);
     _statusPoll!.start();
     if (mounted) setState(() => _ready = true);
+  }
+
+  /// 设备开关切换后即时落盘（只更新对应开关位，不触碰未保存的表单输入）。
+  Future<void> _persistDevSwitch(
+      String key, bool v) async {
+    final cfg = _config;
+    if (cfg == null) return;
+    final updated = cfg.copyWith(
+      devStreamOn: key == 'stream' ? v : null,
+      devRtspOn: key == 'rtsp' ? v : null,
+      devAudioOn: key == 'audio' ? v : null,
+      devLedOn: key == 'led' ? v : null,
+      devVoiceOn: key == 'voice' ? v : null,
+      devAutoRecordOn: key == 'auto_record' ? v : null,
+    );
+    _config = updated;
+    await ConfigService.save(updated);
   }
 
   Future<String> _defaultRecordDir() async {
@@ -101,6 +120,7 @@ class _SettingsPageState extends State<SettingsPage> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
     final poll = int.tryParse(_pollMs!.text) ?? 1000;
+    final prev = _config;
     final config = StreamConfig(
       rtspUrl: _rtsp!.text.trim(),
       statusUrl: _status!.text.trim(),
@@ -111,8 +131,16 @@ class _SettingsPageState extends State<SettingsPage> {
           : _ffmpegPath!.text.trim(),
       pollIntervalMs: poll < 200 ? 200 : poll,
       autoFaceRecord: _autoFaceRecord,
+      // 保留已落盘的设备开关状态，避免保存表单时把开关复位
+      devStreamOn: prev?.devStreamOn ?? false,
+      devRtspOn: prev?.devRtspOn ?? false,
+      devAudioOn: prev?.devAudioOn ?? true,
+      devLedOn: prev?.devLedOn ?? false,
+      devVoiceOn: prev?.devVoiceOn ?? false,
+      devAutoRecordOn: prev?.devAutoRecordOn ?? true,
     );
     await ConfigService.save(config);
+    _config = config;
     if (mounted) {
       setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -205,7 +233,14 @@ class _SettingsPageState extends State<SettingsPage> {
                   // 本机侧：识别到人脸自动录像开关（依据 /status 的 face_count）
                   SwitchListTile(
                     value: _autoFaceRecord,
-                    onChanged: (v) => setState(() => _autoFaceRecord = v),
+                    onChanged: (v) {
+                      setState(() => _autoFaceRecord = v);
+                      final cfg = _config;
+                      if (cfg != null) {
+                        _config = cfg.copyWith(autoFaceRecord: v);
+                        ConfigService.save(_config!);
+                      }
+                    },
                     title: const Text('识别到人脸自动录像',
                         style: TextStyle(color: AppColors.green, fontSize: 14, fontWeight: FontWeight.w600)),
                     subtitle: const Text('画面出现人脸自动录像，无人脸 3s 后停止；录像写入识别日志'),
@@ -233,10 +268,11 @@ class _SettingsPageState extends State<SettingsPage> {
 
   /// 调试功能卡片：HTTP/RTSP 推流、音频、LED、自动录制开关。
   /// 指令经 [CommandService] 下发到 K230 的 /command。
-  /// initialOn 与下位机 config.py 默认值对齐（音频/自动录制默认开，其余关）。
+  /// initialOn 从持久化配置读取；切换成功后即时落盘，重启后保留，无需再点。
   Widget _debugSection() {
     final cmd = _cmdService;
-    if (cmd == null) return const SizedBox.shrink();
+    final cfg = _config;
+    if (cmd == null || cfg == null) return const SizedBox.shrink();
     return InputDecorator(
       decoration: const InputDecoration(
         labelText: '调试功能（设备开关）',
@@ -244,12 +280,12 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
       child: Column(
         children: [
-          SwitchRow(label: 'HTTP 推流', onCmd: Cmd.streamOn, offCmd: Cmd.streamOff, command: cmd, initialOn: false, onResult: _onCmdResult),
-          SwitchRow(label: 'RTSP 推流', onCmd: Cmd.rtspOn, offCmd: Cmd.rtspOff, command: cmd, initialOn: false, onResult: _onCmdResult),
-          SwitchRow(label: '音频提示', onCmd: Cmd.audioOn, offCmd: Cmd.audioOff, command: cmd, initialOn: true, onResult: _onCmdResult),
-          SwitchRow(label: 'LED 指示', onCmd: Cmd.ledOn, offCmd: Cmd.ledOff, command: cmd, initialOn: false, onResult: _onCmdResult),
-          SwitchRow(label: '语音识别', onCmd: Cmd.voiceOn, offCmd: Cmd.voiceOff, command: cmd, initialOn: false, onResult: _onCmdResult),
-          SwitchRow(label: '自动录制', onCmd: Cmd.autoRecordOn, offCmd: Cmd.autoRecordOff, command: cmd, initialOn: true, onResult: _onCmdResult),
+          SwitchRow(label: 'HTTP 推流', onCmd: Cmd.streamOn, offCmd: Cmd.streamOff, command: cmd, initialOn: cfg.devStreamOn, onResult: _onCmdResult, onChanged: (v) => _persistDevSwitch('stream', v)),
+          SwitchRow(label: 'RTSP 推流', onCmd: Cmd.rtspOn, offCmd: Cmd.rtspOff, command: cmd, initialOn: cfg.devRtspOn, onResult: _onCmdResult, onChanged: (v) => _persistDevSwitch('rtsp', v)),
+          SwitchRow(label: '音频提示', onCmd: Cmd.audioOn, offCmd: Cmd.audioOff, command: cmd, initialOn: cfg.devAudioOn, onResult: _onCmdResult, onChanged: (v) => _persistDevSwitch('audio', v)),
+          SwitchRow(label: 'LED 指示', onCmd: Cmd.ledOn, offCmd: Cmd.ledOff, command: cmd, initialOn: cfg.devLedOn, onResult: _onCmdResult, onChanged: (v) => _persistDevSwitch('led', v)),
+          SwitchRow(label: '语音识别', onCmd: Cmd.voiceOn, offCmd: Cmd.voiceOff, command: cmd, initialOn: cfg.devVoiceOn, onResult: _onCmdResult, onChanged: (v) => _persistDevSwitch('voice', v)),
+          SwitchRow(label: '自动录制', onCmd: Cmd.autoRecordOn, offCmd: Cmd.autoRecordOff, command: cmd, initialOn: cfg.devAutoRecordOn, onResult: _onCmdResult, onChanged: (v) => _persistDevSwitch('auto_record', v)),
         ],
       ),
     );

@@ -52,16 +52,18 @@ class RtspService {
     await _setProperty('hwdec', 'auto');
   }
 
-  /// 录像专用参数：启用 demuxer-seekable-cache，让 stream-record 可工作。
-  /// 录像时用这个替代 [applyRtspPrefs]（延迟略增，但能正常落盘）。
+  /// 录像专用参数：仅用内存缓存，不设 `demuxer-seekable-cache`。
+  ///
+  /// 关键：**不要**设 `demuxer-seekable-cache=yes`。该选项会让 mpv 创建一个
+  /// **文件缓存**（落到系统临时目录），Android 上临时目录不可写，mpv 报
+  /// `cannot create file cache` 并级联 `disabling recording`，录像完全不落盘。
+  /// `stream-record` 只是把原始包顺序写进目标文件，不需要可寻址文件缓存，
+  /// 内存缓存（`cache=yes`）即可。此处仍覆盖 low-latency profile 设的 `cache=no`。
   Future<void> applyRecordablePrefs() async {
     ensurePlayer();
     await _setProperty('rtsp-transport', 'tcp');
-    // 不再设 profile=''（mpv 对空 profile 名会告警且不会回退 low-latency 已
-    // 应用的选项值）。改为显式覆盖 stream-record 依赖的几个关键选项。
     await _setProperty('hwdec', 'auto');
-    // stream-record 必需：可寻址缓存
-    await _setProperty('demuxer-seekable-cache', 'yes');
+    // 内存缓存：覆盖 low-latency 的 cache=no；不设 demuxer-seekable-cache
     await _setProperty('cache', 'yes');
     await _setProperty('cache-secs', '2');
   }

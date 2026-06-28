@@ -42,6 +42,11 @@ dependencies:
   media_kit_libs_android_video: ^1.3.6
   media_kit_libs_windows_video: ^1.0.10
 
+  # ===== Android 端录像（FFmpegKit 库内调用，拉 RTSP 落盘 .ts）=====
+  # media_kit 的 Android 预编译 libmpv 未编入输出 muxer，mpv stream-record
+  # 在 Android 写不出文件，故 Android 录像改走 FFmpegKit（full GPL，含 mpegts）。
+  ffmpeg_kit_flutter_new: ^4.2.1
+
   # ===== 配置持久化 / 网络 / 文件 =====
   shared_preferences: ^2.3.2
   http: ^1.2.2

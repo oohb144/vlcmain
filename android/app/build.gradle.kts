@@ -19,7 +19,9 @@ android {
         applicationId = "com.example.vlc"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        // ffmpeg_kit_flutter_new 要求 Android API 24+，固定下限避免随
+        // Flutter 默认值波动导致构建失败。
+        minSdk = 24
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
