@@ -12,6 +12,8 @@ class SwitchRow extends StatefulWidget {
   final Map<String, dynamic> onCmd;
   final Map<String, dynamic> offCmd;
   final CommandService command;
+  /// 初始开关状态（用于与下位机默认值对齐；不跟踪下位机后续变化）。
+  final bool initialOn;
   /// 命令下发后回调（label + ok + message），供上层展示当前状态指示。
   final void Function(String label, bool ok, String message)? onResult;
 
@@ -21,6 +23,7 @@ class SwitchRow extends StatefulWidget {
     required this.onCmd,
     required this.offCmd,
     required this.command,
+    this.initialOn = false,
     this.onResult,
   });
 
@@ -31,6 +34,12 @@ class SwitchRow extends StatefulWidget {
 class _SwitchRowState extends State<SwitchRow> {
   bool _on = false;
   bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _on = widget.initialOn;
+  }
 
   Future<void> _toggle() async {
     if (_busy) return;

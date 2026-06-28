@@ -377,12 +377,12 @@ class _FaceDashboardState extends State<FaceDashboard> {
             ),
             child: Column(
               children: [
-                SwitchRow(label: 'HTTP 推流', onCmd: Cmd.streamOn, offCmd: Cmd.streamOff, command: cmd),
-                SwitchRow(label: 'RTSP 推流', onCmd: Cmd.rtspOn, offCmd: Cmd.rtspOff, command: cmd),
-                SwitchRow(label: '音频提示', onCmd: Cmd.audioOn, offCmd: Cmd.audioOff, command: cmd),
-                SwitchRow(label: 'LED 指示', onCmd: Cmd.ledOn, offCmd: Cmd.ledOff, command: cmd),
-                SwitchRow(label: '语音识别', onCmd: Cmd.voiceOn, offCmd: Cmd.voiceOff, command: cmd),
-                SwitchRow(label: '自动录制', onCmd: Cmd.autoRecordOn, offCmd: Cmd.autoRecordOff, command: cmd),
+                SwitchRow(label: 'HTTP 推流', onCmd: Cmd.streamOn, offCmd: Cmd.streamOff, command: cmd, initialOn: false),
+                SwitchRow(label: 'RTSP 推流', onCmd: Cmd.rtspOn, offCmd: Cmd.rtspOff, command: cmd, initialOn: false),
+                SwitchRow(label: '音频提示', onCmd: Cmd.audioOn, offCmd: Cmd.audioOff, command: cmd, initialOn: true),
+                SwitchRow(label: 'LED 指示', onCmd: Cmd.ledOn, offCmd: Cmd.ledOff, command: cmd, initialOn: false),
+                SwitchRow(label: '语音识别', onCmd: Cmd.voiceOn, offCmd: Cmd.voiceOff, command: cmd, initialOn: false),
+                SwitchRow(label: '自动录制', onCmd: Cmd.autoRecordOn, offCmd: Cmd.autoRecordOff, command: cmd, initialOn: true),
               ],
             ),
           ),

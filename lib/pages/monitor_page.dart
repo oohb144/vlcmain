@@ -546,11 +546,12 @@ class _FaceRecordLogCard extends StatelessWidget {
           }
           final shown = list.length > 50 ? list.sublist(0, 50) : list;
           return Container(
-            constraints: const BoxConstraints(maxHeight: 320),
+            constraints: const BoxConstraints(maxHeight: 400),
             child: ListView.separated(
               shrinkWrap: true,
+              padding: const EdgeInsets.symmetric(vertical: 2),
               itemCount: shown.length,
-              separatorBuilder: (_, _) => const Divider(height: 1, color: AppColors.border),
+              separatorBuilder: (_, _) => const SizedBox(height: 6),
               itemBuilder: (_, i) => _FaceLogTile(
                 ev: shown[i],
                 onTap: () => Navigator.pushNamed(
@@ -578,33 +579,102 @@ class _FaceLogTile extends StatelessWidget {
     final timeStr = dt == null
         ? ev.startIso
         : DateFormat('MM-dd HH:mm:ss').format(dt.toLocal());
-    final labels =
-        ev.faceLabels.isEmpty ? '' : ' · ${ev.faceLabels.join(', ')}';
-    final stranger = ev.hasStranger ? ' · 含陌生人' : '';
-    return ListTile(
-      dense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
-      leading: SizedBox(
-        width: 34,
-        child: Text('#${ev.id}',
-            style: const TextStyle(
-                color: AppColors.accent,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                fontFamily: 'Consolas')),
-      ),
-      title: Text('$timeStr  ·  ${ev.durationSec}s',
-          style: const TextStyle(fontSize: 12, color: AppColors.textPrimary)),
-      subtitle: Text(
-        '${ev.videoName} · 人数 ${ev.maxFaceCount}$stranger$labels',
-        style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-      trailing: ev.hasStranger
-          ? _Tag('陌生人', AppColors.redDim, AppColors.red)
-          : const Icon(Icons.play_circle_outline, size: 20, color: AppColors.accent),
+    final knownLabels = ev.faceLabels.join(', ');
+    return InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+              color: ev.hasStranger
+                  ? AppColors.red.withValues(alpha: 0.5)
+                  : AppColors.border),
+          color: ev.hasStranger ? AppColors.redDim : AppColors.bgInput,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // 索引号
+            SizedBox(
+              width: 40,
+              child: Text('#${ev.id}',
+                  style: const TextStyle(
+                      color: AppColors.accent,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      fontFamily: 'Consolas')),
+            ),
+            const SizedBox(width: 8),
+            // 时间 + 时长 + 文件名
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('$timeStr   ·   时长 ${ev.durationSec}s',
+                      style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 3),
+                  Text(ev.videoName,
+                      style: const TextStyle(
+                          fontSize: 11, color: AppColors.textMuted),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
+                  if (ev.faceLabels.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text('熟人 $knownLabels',
+                          style: const TextStyle(
+                              fontSize: 11, color: AppColors.green),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            // 人数统计：总 / 熟人 / 陌生人
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _countChip('总 ${ev.totalCount}', AppColors.accentDim,
+                    AppColors.accent),
+                const SizedBox(height: 4),
+                _countChip('熟人 ${ev.knownCount}', AppColors.greenDim,
+                    AppColors.green),
+                const SizedBox(height: 4),
+                _countChip(
+                    '陌生人 ${ev.unknownCount}',
+                    ev.unknownCount > 0
+                        ? AppColors.redDim
+                        : AppColors.bgHover,
+                    ev.unknownCount > 0
+                        ? AppColors.red
+                        : AppColors.textMuted),
+              ],
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.play_circle_outline,
+                size: 22, color: AppColors.accent),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _countChip(String text, Color bg, Color fg) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration:
+          BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8)),
+      child: Text(text,
+          style: TextStyle(
+              color: fg, fontSize: 10, fontWeight: FontWeight.w600)),
     );
   }
 }

@@ -64,10 +64,14 @@ class _VideoStageState extends State<VideoStage> {
     final svc = AppServices.of(context);
     if (!identical(svc, _svc)) {
       _svc = svc;
-      // 配置刷新后 statusPoll 实例可能更换，重新按当前控制态恢复轮询
-      if (_isControlOn && !svc.statusPoll.isRunning) {
-        svc.statusPoll.start();
-      }
+    }
+    // 视频区挂载即保证状态轮询在跑：左下 OSD 与自动录像都依赖实时状态。
+    // 仅当未运行时启动（用户用「断开控制」主动停的不会被打断重启）。
+    if (!_svc!.statusPoll.isRunning) {
+      _svc!.statusPoll.start();
+    }
+    if (_isControlOn != _svc!.statusPoll.isRunning) {
+      _isControlOn = _svc!.statusPoll.isRunning;
     }
   }
 

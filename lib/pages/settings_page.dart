@@ -233,6 +233,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   /// 调试功能卡片：HTTP/RTSP 推流、音频、LED、自动录制开关。
   /// 指令经 [CommandService] 下发到 K230 的 /command。
+  /// initialOn 与下位机 config.py 默认值对齐（音频/自动录制默认开，其余关）。
   Widget _debugSection() {
     final cmd = _cmdService;
     if (cmd == null) return const SizedBox.shrink();
@@ -243,13 +244,12 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
       child: Column(
         children: [
-          SwitchRow(label: 'HTTP 推流', onCmd: Cmd.streamOn, offCmd: Cmd.streamOff, command: cmd),
-          SwitchRow(label: 'RTSP 推流', onCmd: Cmd.rtspOn, offCmd: Cmd.rtspOff, command: cmd),
-          SwitchRow(label: 'HTTP 推流', onCmd: Cmd.streamOn, offCmd: Cmd.streamOff, command: cmd, onResult: _onCmdResult),
-          SwitchRow(label: 'RTSP 推流', onCmd: Cmd.rtspOn, offCmd: Cmd.rtspOff, command: cmd, onResult: _onCmdResult),
-          SwitchRow(label: '音频提示', onCmd: Cmd.audioOn, offCmd: Cmd.audioOff, command: cmd, onResult: _onCmdResult),
-          SwitchRow(label: 'LED 指示', onCmd: Cmd.ledOn, offCmd: Cmd.ledOff, command: cmd, onResult: _onCmdResult),
-          SwitchRow(label: '自动录制', onCmd: Cmd.autoRecordOn, offCmd: Cmd.autoRecordOff, command: cmd, onResult: _onCmdResult),
+          SwitchRow(label: 'HTTP 推流', onCmd: Cmd.streamOn, offCmd: Cmd.streamOff, command: cmd, initialOn: false, onResult: _onCmdResult),
+          SwitchRow(label: 'RTSP 推流', onCmd: Cmd.rtspOn, offCmd: Cmd.rtspOff, command: cmd, initialOn: false, onResult: _onCmdResult),
+          SwitchRow(label: '音频提示', onCmd: Cmd.audioOn, offCmd: Cmd.audioOff, command: cmd, initialOn: true, onResult: _onCmdResult),
+          SwitchRow(label: 'LED 指示', onCmd: Cmd.ledOn, offCmd: Cmd.ledOff, command: cmd, initialOn: false, onResult: _onCmdResult),
+          SwitchRow(label: '语音识别', onCmd: Cmd.voiceOn, offCmd: Cmd.voiceOff, command: cmd, initialOn: false, onResult: _onCmdResult),
+          SwitchRow(label: '自动录制', onCmd: Cmd.autoRecordOn, offCmd: Cmd.autoRecordOff, command: cmd, initialOn: true, onResult: _onCmdResult),
         ],
       ),
     );

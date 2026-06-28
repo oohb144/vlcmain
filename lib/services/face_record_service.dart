@@ -63,8 +63,8 @@ class FaceRecordService {
   // 进行中事件的累积状态
   DateTime? _startAt;
   String? _videoPath;
-  final Set<String> _accLabels = {};
-  int _accMax = 0;
+  final Set<String> _accLabels = {}; // 出现过的熟人标签（去重）→ 熟人数
+  int _accUnknown = 0; // 单次轮询 unknown_face_count 的峰值 → 陌生人数
   bool _accStranger = false;
   String? _accState;
   int _lastUpdateMs = 0;
@@ -144,7 +144,7 @@ class FaceRecordService {
     _accLabels
       ..clear()
       ..addAll(status.faceLabels);
-    _accMax = status.faceCount ?? 0;
+    _accUnknown = status.unknownFaceCount ?? 0;
     _accStranger = (status.unknownFaceCount ?? 0) > 0;
     _accState = status.state;
     _noFaceSince = null;
@@ -162,7 +162,9 @@ class FaceRecordService {
         durationSec: 0,
         videoPath: path,
         faceLabels: _accLabels.toList(),
-        maxFaceCount: _accMax,
+        knownCount: _accLabels.length,
+        unknownCount: _accUnknown,
+        totalCount: _accLabels.length + _accUnknown,
         hasStranger: _accStranger,
         state: _accState,
       );
@@ -186,9 +188,9 @@ class FaceRecordService {
 
   void _accumulate(DeviceStatus status) {
     _accLabels.addAll(status.faceLabels);
-    final fc = status.faceCount ?? 0;
-    if (fc > _accMax) _accMax = fc;
-    if ((status.unknownFaceCount ?? 0) > 0) _accStranger = true;
+    final un = status.unknownFaceCount ?? 0;
+    if (un > _accUnknown) _accUnknown = un;
+    if (un > 0) _accStranger = true;
     _accState = status.state;
   }
 
@@ -201,7 +203,9 @@ class FaceRecordService {
     current.value = cur.copyWith(
       durationSec: dur,
       faceLabels: _accLabels.toList(),
-      maxFaceCount: _accMax,
+      knownCount: _accLabels.length,
+      unknownCount: _accUnknown,
+      totalCount: _accLabels.length + _accUnknown,
       hasStranger: _accStranger,
       state: _accState,
     );
@@ -230,7 +234,9 @@ class FaceRecordService {
       durationSec: dur,
       videoPath: path,
       faceLabels: _accLabels.toList(),
-      maxFaceCount: _accMax,
+      knownCount: _accLabels.length,
+      unknownCount: _accUnknown,
+      totalCount: _accLabels.length + _accUnknown,
       hasStranger: _accStranger,
       state: overrideReason ?? _accState,
     );
@@ -254,7 +260,7 @@ class FaceRecordService {
     _startAt = null;
     _videoPath = null;
     _accLabels.clear();
-    _accMax = 0;
+    _accUnknown = 0;
     _accStranger = false;
     _accState = null;
     _noFaceSince = null;

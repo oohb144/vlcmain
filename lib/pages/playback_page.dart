@@ -27,6 +27,9 @@ class _PlaybackPageState extends State<PlaybackPage> {
   String? _playError; // 播放本地文件失败时的 mpv 错误，显示在播放器下方
   String? _initialPath; // 从路由 arguments 带入的「自动播放此录像」路径
   bool _didInit = false;
+  final ScrollController _listController = ScrollController();
+  // ListTile（含 leading/title/subtitle/trailing）估算行高，用于滚动定位
+  static const double _estItemHeight = 72.0;
   StreamSubscription<String>? _errSub;
   StreamSubscription<PlayerLog>? _logSub;
 
@@ -70,8 +73,15 @@ class _PlaybackPageState extends State<PlaybackPage> {
   void dispose() {
     _errSub?.cancel();
     _logSub?.cancel();
+    _listController.dispose();
     _player.dispose();
     super.dispose();
+  }
+
+  /// 取路径 basename，兼容正反斜杠。
+  String _basename(String path) {
+    final i = path.lastIndexOf(RegExp(r'[/\\]'));
+    return i >= 0 ? path.substring(i + 1) : path;
   }
 
   Future<void> _load() async {
@@ -84,18 +94,34 @@ class _PlaybackPageState extends State<PlaybackPage> {
       _dir = c.recordDir;
       final list = await _service.listRecordings(c.recordDir);
       if (mounted) setState(() => _recordings = list);
-      // 若带入了初始路径（从日志跳来），自动播放对应录像
+      // 若带入了初始路径（从日志跳来），自动选中并播放对应录像
       final init = _initialPath;
       if (init != null && init.isNotEmpty) {
         _initialPath = null;
-        Recording? match;
-        for (final r in list) {
-          if (r.path == init) {
-            match = r;
+        // 录像路径正反斜杠不一致（recorder 归一化为 /，Windows 目录枚举为 \），
+        // 统一比较 basename 避免匹配失败。
+        final wantBasename = _basename(init);
+        int matchIndex = -1;
+        for (var i = 0; i < list.length; i++) {
+          if (_basename(list[i].path) == wantBasename) {
+            matchIndex = i;
             break;
           }
         }
-        if (match != null && mounted) await _play(match);
+        if (matchIndex >= 0 && mounted) {
+          await _play(list[matchIndex]);
+          // 滚动让选中项可见
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            if (_listController.hasClients) {
+              final target = (matchIndex * _estItemHeight)
+                  .clamp(0.0, _listController.position.maxScrollExtent);
+              _listController.animateTo(target,
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic);
+            }
+          });
+        }
       }
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
@@ -229,12 +255,19 @@ class _PlaybackPageState extends State<PlaybackPage> {
                         ),
                       )
                     : ListView.separated(
+                        controller: _listController,
                         itemCount: _recordings.length,
                         separatorBuilder: (_, _) => const Divider(height: 1),
                         itemBuilder: (context, i) {
                           final r = _recordings[i];
                           final isCurrent = _currentPlaying == r.path;
                           return ListTile(
+                            tileColor: isCurrent
+                                ? Theme.of(context)
+                                    .colorScheme
+                                    .primary
+                                    .withValues(alpha: 0.12)
+                                : null,
                             leading: Icon(
                               Icons.movie,
                               color: isCurrent
